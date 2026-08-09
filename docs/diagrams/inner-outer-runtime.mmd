@@ -1,0 +1,113 @@
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "fontFamily": "Microsoft YaHei, Segoe UI, sans-serif",
+    "fontSize": "18px",
+    "primaryTextColor": "#172033",
+    "lineColor": "#52606d",
+    "edgeLabelBackground": "#ffffff",
+    "clusterBkg": "#f7f9fc",
+    "clusterBorder": "#aab7c4"
+  },
+  "flowchart": {
+    "htmlLabels": true,
+    "curve": "basis",
+    "nodeSpacing": 36,
+    "rankSpacing": 52,
+    "padding": 16
+  }
+}}%%
+flowchart LR
+    subgraph SOURCES["调用者与运行时机"]
+        direction TB
+        RAW["上下文宿主<br/>保存、压缩与恢复会话"]
+        MATERIALIZE["resume / context materialize"]
+        HOSTCALL["自动查询 status<br/>不执行交付 check"]
+        EARLY["Agent 可选早检"]
+        LOCAL["本地客观边界<br/>commit / 显式 handoff /<br/>push / PR / release"]
+        CI["远端权威边界<br/>CI / branch protection<br/>可信 base → candidate HEAD"]
+
+        RAW --> MATERIALIZE --> HOSTCALL
+    end
+
+    subgraph OUTER["Ockle 外环：充分定义的 guard 机器接口"]
+        direction TB
+
+        subgraph STATUSPATH["上下文恢复只查询状态"]
+            direction TB
+            STATUS["<b>status(workspace)</b><br/>matching result 或 unchecked"]
+            IDENTITY{"workspace identity<br/>匹配上次 run？"}
+            REINJECT["匹配且 blocked<br/>重新注入 finding"]
+            UNCHECKED["不匹配 / 没有 run<br/>注入 unchecked"]
+            SILENT["匹配且 clear<br/>通常零注入"]
+
+            STATUS --> IDENTITY
+            IDENTITY -->|blocked| REINJECT
+            IDENTITY -->|stale / missing| UNCHECKED
+            IDENTITY -->|clear| SILENT
+        end
+
+        subgraph CHECKPATH["可选早检与交付 gate 执行完整检查"]
+            direction TB
+            CHECK["<b>check(base, candidate, policy)</b><br/>完整扫描当前输入"]
+            VERDICT{"verdict + coverage"}
+            CLEAR["clear + complete<br/>允许对应交付动作"]
+            BLOCKED["blocked + complete<br/>至少一个机械 finding"]
+            DETAILS["<b>details(runId, cursor)</b><br/>按页读取 finding"]
+            PARTIAL["indeterminate + partial<br/>强制 gate fail closed"]
+
+            CHECK --> VERDICT
+            VERDICT -->|完整且无 finding| CLEAR
+            VERDICT -->|完整且有 finding| BLOCKED --> DETAILS
+            VERDICT -->|超时 / 解析失败 / 不支持| PARTIAL
+        end
+    end
+
+    HOSTCALL --> STATUS
+    EARLY --> CHECK
+    LOCAL --> CHECK
+    CI --> CHECK
+
+    subgraph INNER["Ockle 内环：按已经观察到的工程现象选择方法"]
+        direction TB
+        OBS{"当前工程现象"}
+        TDD["新增或改变行为<br/><b>Test-Driven</b><br/><b>Development</b>"]
+        DEBUG["失败存在但根因未知<br/><b>Systematic</b><br/><b>Debugging</b>"]
+        REVIEW["收到具体 finding<br/><b>Receiving</b><br/><b>Code Review</b>"]
+        PATCH["patch + executable evidence"]
+        NEXT["修复后可选早检；<br/>到下一个客观交付边界必须重新 check"]
+
+        OBS -->|新增 / 改变行为| TDD --> PATCH
+        OBS -->|未知失败| DEBUG --> PATCH
+        OBS -->|具体 finding| REVIEW --> PATCH
+        PATCH --> NEXT
+    end
+
+    REINJECT --> OBS
+    UNCHECKED --> OBS
+    DETAILS --> REVIEW
+    PARTIAL --> DEBUG
+
+    HANDOFFNOTE["未提交工作树只有在宿主提供显式 handoff hook 时<br/>才能获得机械 gate；Skill 提醒本身不是 enforcement。"]
+    LOCAL -.-> HANDOFFNOTE
+
+    SKILLNOTE["Skill 只定义如何验证、修复和复验 finding。<br/>guard 的调度、verdict、授权和分页状态属于机器接口。"]
+    INNER -.-> SKILLNOTE
+
+    class RAW,MATERIALIZE,HOSTCALL,REINJECT,UNCHECKED,SILENT host
+    class EARLY,LOCAL,CI schedule
+    class STATUS,IDENTITY,CHECK,VERDICT,DETAILS guard
+    class OBS,TDD,DEBUG,REVIEW,PATCH,NEXT inner
+    class CLEAR good
+    class BLOCKED blocked
+    class PARTIAL uncertain
+    class HANDOFFNOTE,SKILLNOTE note
+
+    classDef host fill:#dceeff,stroke:#2f6f9f,stroke-width:2px,color:#17324d
+    classDef inner fill:#e4f4e8,stroke:#3d7d4d,stroke-width:2px,color:#173d22
+    classDef guard fill:#fff2cc,stroke:#a97913,stroke-width:2px,color:#4a3500
+    classDef schedule fill:#e9e5f7,stroke:#66559a,stroke-width:2px,color:#2f2650
+    classDef good fill:#d9f3e3,stroke:#24734a,stroke-width:3px,color:#153d28
+    classDef blocked fill:#ffe1df,stroke:#b9413c,stroke-width:3px,color:#5c1d1a
+    classDef uncertain fill:#fde8bd,stroke:#a56600,stroke-width:3px,color:#4f3100
+    classDef note fill:#ffffff,stroke:#7d8894,stroke-width:1.5px,stroke-dasharray:6 4,color:#374151

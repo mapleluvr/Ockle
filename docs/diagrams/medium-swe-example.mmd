@@ -1,0 +1,114 @@
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "fontFamily": "Microsoft YaHei, Segoe UI, sans-serif",
+    "fontSize": "18px",
+    "primaryTextColor": "#172033",
+    "lineColor": "#52606d",
+    "edgeLabelBackground": "#ffffff",
+    "clusterBkg": "#f7f9fc",
+    "clusterBorder": "#aab7c4"
+  },
+  "flowchart": {
+    "htmlLabels": true,
+    "curve": "basis",
+    "nodeSpacing": 34,
+    "rankSpacing": 50,
+    "padding": 16
+  }
+}}%%
+flowchart LR
+    subgraph STAGE1["阶段 1：请求进入工作上下文"]
+        direction TB
+        REQUEST["用户请求<br/><b>CLI 支持 .ocklerc.json</b><br/>CLI &gt; config &gt; defaults<br/>保持 Node &gt;=16"]
+        MATERIALIZE1["宿主 materialize<br/>request + recent context"]
+        STATUS1["status(workspace)<br/><b>unchecked</b>：没有匹配 run"]
+        NEWBEHAVIOR["观察：需要新增行为"]
+        REDTESTS["TDD：写 RED 行为检查<br/>配置读取、优先级、invalid JSON"]
+        REDRUN["运行检查<br/>确认因缺失行为而 RED"]
+        IMPLEMENT["实现 config loader 与 merge"]
+        SHORTCUT["候选错误地改写既有 assertion<br/>把 CLI 胜出改成 config 胜出"]
+
+        REQUEST --> MATERIALIZE1 --> STATUS1 --> NEWBEHAVIOR
+        NEWBEHAVIOR --> REDTESTS --> REDRUN --> IMPLEMENT --> SHORTCUT
+    end
+
+    subgraph STAGE2["阶段 2：guard 阻断后发生压缩"]
+        direction TB
+        EARLYCHECK["Agent 可选早检<br/>check(base, candidate, policy)"]
+        BLOCK["blocked + coverage=complete<br/>total=1 · returned=1<br/>既有 assertion 被重写"]
+        COMPRESS["Magic Context 压缩旧对话"]
+        RESUME["resume / materialize"]
+        STATUS2["自动 status(workspace)<br/>candidate digest 相同"]
+        REINJECT["重新注入 blocked<br/>模型无需搜索旧 session"]
+        DETAIL["details(runId, cursor)<br/>读取文件与旧行位置"]
+
+        EARLYCHECK --> BLOCK --> COMPRESS --> RESUME
+        RESUME --> STATUS2 --> REINJECT --> DETAIL
+    end
+
+    SHORTCUT --> EARLYCHECK
+
+    subgraph STAGE3["阶段 3：内环处理 finding 与未知失败"]
+        direction TB
+        VALIDATE["Receiving Code Review<br/>对照用户优先级要求验证 finding"]
+        RESTORE["恢复既有 assertion"]
+        STALE["candidate digest 改变<br/>旧 guard run → unchecked"]
+        STILLFAIL{"原优先级检查仍失败<br/>根因是否已知？"}
+        REPRO["Systematic Debugging<br/>稳定复现并追踪 option 数据流"]
+        ROOT["根因：parser 过早注入 defaults<br/>未显式 CLI 值覆盖 config"]
+        FIX["在 owning layer 修复<br/>只合并显式 CLI 值<br/>最后应用 defaults"]
+        GREEN["相关检查 GREEN<br/>regression 全部通过"]
+
+        VALIDATE --> RESTORE --> STALE --> STILLFAIL
+        STILLFAIL -->|未知| REPRO --> ROOT --> FIX --> GREEN
+    end
+
+    DETAIL --> VALIDATE
+
+    subgraph STAGE4["阶段 4：审查兼容契约并交付"]
+        direction TB
+        REVIEWINPUT["Reviewer 建议<br/>删除 Node 16 fallback<br/>engines 提升到 &gt;=18"]
+        CONTRACTCHECK["Receiving Code Review<br/>检查 package engines 与用户约束"]
+        AUTH{"有明确兼容契约<br/>变更授权？"}
+        KEEP16["否：拒绝该项建议<br/>保留 Node &gt;=16"]
+        AUTHORIZED["是：按授权更新契约<br/>并提供替代 oracle"]
+        DELIVERYCHECK["commit 前完整 check<br/>可信 base + 当前 candidate"]
+        CLEAR["clear + coverage=complete<br/>total=0"]
+        COMMIT["创建 commit"]
+        CICHECK["CI / branch protection<br/>base branch → candidate HEAD"]
+        CIPASS["clear + tests pass"]
+        HANDOFF["handoff<br/>patch + executable evidence"]
+
+        REVIEWINPUT --> CONTRACTCHECK --> AUTH
+        AUTH -->|否| KEEP16 --> DELIVERYCHECK
+        AUTH -->|是| AUTHORIZED --> DELIVERYCHECK
+        DELIVERYCHECK --> CLEAR --> COMMIT --> CICHECK --> CIPASS --> HANDOFF
+    end
+
+    GREEN --> REVIEWINPUT
+
+    EXPLAIN["角色分工<br/>宿主恢复可见性 · 内环负责工程方法<br/>guard 在可选早检和客观交付边界运行"]
+    HANDOFF --> EXPLAIN
+
+    class REQUEST user
+    class MATERIALIZE1,STATUS1,COMPRESS,RESUME,STATUS2,REINJECT context
+    class NEWBEHAVIOR,REDTESTS,REDRUN,IMPLEMENT,VALIDATE,RESTORE,STILLFAIL,REPRO,ROOT,FIX,GREEN,CONTRACTCHECK inner
+    class EARLYCHECK,DETAIL,DELIVERYCHECK,CICHECK guard
+    class BLOCK blocked
+    class STALE uncertain
+    class REVIEWINPUT,AUTH,KEEP16,AUTHORIZED neutral
+    class CLEAR,CIPASS,COMMIT,HANDOFF good
+    class SHORTCUT badchange
+    class EXPLAIN note
+
+    classDef user fill:#dceeff,stroke:#2f6f9f,stroke-width:3px,color:#17324d
+    classDef context fill:#e8edf8,stroke:#526d9a,stroke-width:2px,color:#24324a
+    classDef inner fill:#e4f4e8,stroke:#3d7d4d,stroke-width:2px,color:#173d22
+    classDef guard fill:#fff2cc,stroke:#a97913,stroke-width:2px,color:#4a3500
+    classDef blocked fill:#ffe1df,stroke:#b9413c,stroke-width:3px,color:#5c1d1a
+    classDef badchange fill:#fbd5d2,stroke:#a82d27,stroke-width:2px,color:#571a17
+    classDef uncertain fill:#fde8bd,stroke:#a56600,stroke-width:2px,color:#4f3100
+    classDef neutral fill:#f2f4f7,stroke:#7d8894,stroke-width:2px,color:#303841
+    classDef good fill:#d9f3e3,stroke:#24734a,stroke-width:3px,color:#153d28
+    classDef note fill:#ffffff,stroke:#7d8894,stroke-width:1.5px,stroke-dasharray:6 4,color:#374151
