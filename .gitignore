@@ -1,0 +1,10 @@
+# Local research and agent artifacts
+.superpowers-analysis/
+.pi-subagents/
+
+# Generated files
+node_modules/
+coverage/
+*.log
+.DS_Store
+Thumbs.db

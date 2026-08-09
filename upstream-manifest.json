@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "scope": "inner-loop-v0",
+  "upstream": {
+    "repository": "https://github.com/obra/superpowers",
+    "tag": "v6.2.0",
+    "commit": "3dcbd5c4b48e02263fbf4a3c01e3fe4f81d584d9"
+  },
+  "files": [
+    {
+      "path": "skills/test-driven-development/SKILL.md",
+      "upstreamSha256": "bf1b8216e523851a411e91d429a7c1c2a173e79d88957bc78e348218d50edd54",
+      "localSha256AtImport": "bf1b8216e523851a411e91d429a7c1c2a173e79d88957bc78e348218d50edd54",
+      "status": "unchanged"
+    },
+    {
+      "path": "skills/test-driven-development/writing-good-tests.md",
+      "upstreamSha256": "51471c853306ff92ca8bb41dcaea05f31c0e46b03651f8f3c99754b7172f4ae1",
+      "localSha256AtImport": "5dc3490c58894ee026e11f98cbdd0de8a40e19eaa7df9b86647931317ccedf44",
+      "status": "modified",
+      "deviations": [
+        "Replaced the superpowers:writing-skills cross-reference with a direct behavioral-evaluation statement."
+      ]
+    },
+    {
+      "path": "skills/systematic-debugging/SKILL.md",
+      "upstreamSha256": "808fc5717aa88ad65efff312b11c186294d3e6ee301afb584e2f86599b137787",
+      "localSha256AtImport": "a013b0a93406c0fc3f81cc0cfe19d33c5dc2e2415a8002b287d0c4354aba6fa4",
+      "status": "modified",
+      "deviations": [
+        "Added the deterministic short path already present in superpowers-lite for obvious single-component failures.",
+        "Rebound the TDD reference to Ockle's local test-driven-development skill.",
+        "Replaced the absent verification-before-completion skill reference with direct reproduction and affected-suite verification."
+      ]
+    },
+    {
+      "path": "skills/systematic-debugging/root-cause-tracing.md",
+      "upstreamSha256": "6b0622269e098ca1399e123e553fd385f0b6412d88ef0e9c4f5a8ea9cf1cec7b",
+      "localSha256AtImport": "131675e2b85849ea20383465f681d3aa448e2fabb8eb5070d8098608cf6da53e",
+      "status": "modified",
+      "deviations": [
+        "Renamed worktree/package-specific example identifiers to neutral repository identifiers."
+      ]
+    },
+    {
+      "path": "skills/systematic-debugging/defense-in-depth.md",
+      "upstreamSha256": "1e175fb86fc357e58c6aebf5441e481e1b7868b4380c0456b63a17eefbd18ba7",
+      "localSha256AtImport": "97b77fddc36dbb86d1580fc4f74ff170bb25b75fa7c08f135403c3a950d411af",
+      "status": "modified",
+      "deviations": [
+        "Renamed one worktree-specific example identifier to a neutral repository identifier."
+      ]
+    },
+    {
+      "path": "skills/systematic-debugging/condition-based-waiting.md",
+      "upstreamSha256": "e89fec8400d6cd50f43407cec9fab50976ba4d55d0ec2eb51c0bd68036b54c26",
+      "localSha256AtImport": "e89fec8400d6cd50f43407cec9fab50976ba4d55d0ec2eb51c0bd68036b54c26",
+      "status": "unchanged"
+    },
+    {
+      "path": "skills/systematic-debugging/condition-based-waiting-example.ts",
+      "upstreamSha256": "40ae5ebe497fdf310200e43fe986552546d0a22837c0d39e855db1cfd33eb88e",
+      "localSha256AtImport": "40ae5ebe497fdf310200e43fe986552546d0a22837c0d39e855db1cfd33eb88e",
+      "status": "unchanged"
+    },
+    {
+      "path": "skills/systematic-debugging/find-polluter.sh",
+      "upstreamSha256": "dd7b8f13c4cc2a24b33ff87b18da9248f3e1c80a085c3316224f69ff0fa5c43c",
+      "localSha256AtImport": "dd7b8f13c4cc2a24b33ff87b18da9248f3e1c80a085c3316224f69ff0fa5c43c",
+      "status": "unchanged"
+    },
+    {
+      "path": "skills/receiving-code-review/SKILL.md",
+      "upstreamSha256": "091df1629510af1b92fc4abd6f96732ebedb4cb2c0f3457e8f2740b0504a2438",
+      "localSha256AtImport": "af1d2541cb528b562b465d70e3d02524617c085c9e6ce4b509abd68d25ea9915",
+      "status": "modified",
+      "deviations": [
+        "Removed the GitHub gh-api reply instruction because host tool mapping is outside the methodology core.",
+        "Made declared compatibility ranges authoritative after the first real-code review eval rewrote Node support and its regression test in 3/3 loaded-skill runs."
+      ]
+    }
+  ]
+}
