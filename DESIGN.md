@@ -1,8 +1,10 @@
 # Ockle Skill Pack 设计草案
 
-> 状态：待对抗性评审。本文描述预期产品形状，不是实现计划，也不授权创建未列出的流程对象。
+> 状态：历史候选设计。当前发布形状见 [README.md](./README.md)，已批准并实现的
+> 外环 v1 见 [docs/outer-loop-v1/README.md](./docs/outer-loop-v1/README.md)。本文中的
+> SDD、`unattended-delivery`、事件日志和恢复投影仍未获实现授权。
 >
-> 实测依据见 [FINDINGS.md](./FINDINGS.md)。本文只承载设计，不复制实验结论。
+> 实测依据见 [FINDINGS.md](./FINDINGS.md)。本文只承载设计历史，不复制实验结论。
 
 ## 1. 设计目标
 
@@ -21,7 +23,9 @@ Ockle 保留稳定的软件工程方法，删除由模型手工维护的流程�
 
 本文使用“内环”和“外环”作为设计者的分析语言。Skill 文本不要求模型声明自己处于哪个环，也不引入环之间的状态转换。
 
-> **当前实现范围：** v0 只包含三个内环 skill。下文的 SDD、无人值守交付和 companion 均为候选设计，不属于当前发布内容。
+> **当前实现范围：** 三个内环 skill 已实现；外环仅实现独立的
+> `assertion-change@1` guard 机器接口。SDD、无人值守交付 Skill、workflow events
+> 和 compression-recovery projection 仍是未实现候选。
 
 ## 2. 仓库与发布结构
 

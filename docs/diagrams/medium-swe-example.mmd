@@ -39,7 +39,7 @@ flowchart LR
         BLOCK["blocked + coverage=complete<br/>total=1 · returned=1<br/>既有 assertion 被重写"]
         COMPRESS["Magic Context 压缩旧对话"]
         RESUME["resume / materialize"]
-        STATUS2["自动 status(workspace)<br/>candidate digest 相同"]
+        STATUS2["自动 status(workspace)<br/>policy-input digest 相同"]
         REINJECT["重新注入 blocked<br/>模型无需搜索旧 session"]
         DETAIL["details(runId, cursor)<br/>读取文件与旧行位置"]
 
@@ -53,7 +53,7 @@ flowchart LR
         direction TB
         VALIDATE["Receiving Code Review<br/>对照用户优先级要求验证 finding"]
         RESTORE["恢复既有 assertion"]
-        STALE["candidate digest 改变<br/>旧 guard run → unchecked"]
+        STALE["policy-input digest 改变<br/>旧 guard run → unchecked"]
         STILLFAIL{"原优先级检查仍失败<br/>根因是否已知？"}
         REPRO["Systematic Debugging<br/>稳定复现并追踪 option 数据流"]
         ROOT["根因：parser 过早注入 defaults<br/>未显式 CLI 值覆盖 config"]
@@ -73,10 +73,10 @@ flowchart LR
         AUTH{"有明确兼容契约<br/>变更授权？"}
         KEEP16["否：拒绝该项建议<br/>保留 Node &gt;=16"]
         AUTHORIZED["是：按授权更新契约<br/>并提供替代 oracle"]
-        DELIVERYCHECK["commit 前完整 check<br/>可信 base + 当前 candidate"]
+        DELIVERYCHECK["commit 前完整 check<br/>可信 base + staged index"]
         CLEAR["clear + coverage=complete<br/>total=0"]
         COMMIT["创建 commit"]
-        CICHECK["CI / branch protection<br/>base branch → candidate HEAD"]
+        CICHECK["CI / branch protection<br/>base branch → candidate ref"]
         CIPASS["clear + tests pass"]
         HANDOFF["handoff<br/>patch + executable evidence"]
 

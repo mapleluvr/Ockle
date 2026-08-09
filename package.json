@@ -1,0 +1,15 @@
+{
+  "name": "ockle",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "guard"
+  ],
+  "scripts": {
+    "test": "node scripts/test.mjs",
+    "guard": "node guard/bin/ockle-guard.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

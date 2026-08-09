@@ -1,5 +1,9 @@
 # Ockle 外环：调查前基线
 
+> **历史状态：** 本文固定调查前候选，不是当前实现契约。用户随后批准的
+> `check / status / details` v1 及其 latest-only mechanical snapshot 见
+> [outer-loop-v1/README.md](outer-loop-v1/README.md)。
+
 状态：候选方向，不是实现授权
 记录时间：2026-08-09
 后续调查：本机已安装的 `magic-context` Pi extension

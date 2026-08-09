@@ -3,6 +3,11 @@
 状态：已完成源码与运行态调查；用于修正 Ockle 外环候选方向
 调查时间：2026-08-09
 调查前基线：[outer-loop-baseline.md](outer-loop-baseline.md)
+后续实现：[outer-loop-v1/README.md](outer-loop-v1/README.md)
+
+> **后续边界说明：** 本文的“无状态”结论否定的是 workflow state、事件日志和
+> Ockle 自己的压缩投影。用户随后明确批准了 latest-only mechanical result，供
+> 上下文宿主调用 `status` 重新查询；它是可丢弃提示，不是交付 authority。
 
 ## 结论
 
@@ -34,8 +39,10 @@ Pi session JSONL（原始、分支化会话）
    INVALIDATED` schema 或统一 `unattended-delivery` skill。
 2. 把连续性留给宿主；Ockle 不重复 Magic Context 已有的 transcript、summary、
    memory、todo 和检索系统。
-3. 机械 delivery guard 仍然成立，而且应保持无状态、可从当前 tree/diff 重算。
-   即使模型忘记旧 finding，hook 也必须再次给出同一 veto。
+3. 机械 delivery guard 仍然成立；当前 verdict 必须可从当前 tree/diff 重算，
+   不依赖 workflow state。后续 v1 只保留一个 latest-only mechanical snapshot
+   供宿主 `status` 查询；即使该 snapshot 丢失或模型忘记 finding，交付 hook 仍须
+   重新运行同一 veto。
 4. Magic Context memory、todo 和 summary 只能作为工作提示，不能成为交付授权、
    契约真相或“已经完成”的证明。
 

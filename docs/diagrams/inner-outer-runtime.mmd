@@ -24,7 +24,7 @@ flowchart LR
         MATERIALIZE["resume / context materialize"]
         HOSTCALL["自动查询 status<br/>不执行交付 check"]
         EARLY["Agent 可选早检"]
-        LOCAL["本地客观边界<br/>commit / 显式 handoff /<br/>push / PR / release"]
+        LOCAL["本地客观边界<br/>commit: staged index<br/>显式 handoff: worktree<br/>push / PR / release: ref"]
         CI["远端权威边界<br/>CI / branch protection<br/>可信 base → candidate HEAD"]
 
         RAW --> MATERIALIZE --> HOSTCALL
@@ -36,7 +36,7 @@ flowchart LR
         subgraph STATUSPATH["上下文恢复只查询状态"]
             direction TB
             STATUS["<b>status(workspace)</b><br/>matching result 或 unchecked"]
-            IDENTITY{"workspace identity<br/>匹配上次 run？"}
+            IDENTITY{"policy-input digest<br/>匹配上次 run？"}
             REINJECT["匹配且 blocked<br/>重新注入 finding"]
             UNCHECKED["不匹配 / 没有 run<br/>注入 unchecked"]
             SILENT["匹配且 clear<br/>通常零注入"]
@@ -49,7 +49,7 @@ flowchart LR
 
         subgraph CHECKPATH["可选早检与交付 gate 执行完整检查"]
             direction TB
-            CHECK["<b>check(base, candidate, policy)</b><br/>完整扫描当前输入"]
+            CHECK["<b>check(base, candidate, policy)</b><br/>扫描 changed policy paths"]
             VERDICT{"verdict + coverage"}
             CLEAR["clear + complete<br/>允许对应交付动作"]
             BLOCKED["blocked + complete<br/>至少一个机械 finding"]
@@ -59,7 +59,7 @@ flowchart LR
             CHECK --> VERDICT
             VERDICT -->|完整且无 finding| CLEAR
             VERDICT -->|完整且有 finding| BLOCKED --> DETAILS
-            VERDICT -->|超时 / 解析失败 / 不支持| PARTIAL
+            VERDICT -->|scan / read / parse 失败| PARTIAL
         end
     end
 
@@ -88,7 +88,7 @@ flowchart LR
     DETAILS --> REVIEW
     PARTIAL --> DEBUG
 
-    HANDOFFNOTE["未提交工作树只有在宿主提供显式 handoff hook 时<br/>才能获得机械 gate；Skill 提醒本身不是 enforcement。"]
+    HANDOFFNOTE["commit gate 必须检查 staged index；显式交付未提交工作树时<br/>宿主需提供 handoff hook；Skill 提醒本身不是 enforcement。"]
     LOCAL -.-> HANDOFFNOTE
 
     SKILLNOTE["Skill 只定义如何验证、修复和复验 finding。<br/>guard 的调度、verdict、授权和分页状态属于机器接口。"]
