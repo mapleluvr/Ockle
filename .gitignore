@@ -1,6 +1,7 @@
 # Local research and agent artifacts
 .superpowers-analysis/
 .pi-subagents/
+.cortexkit/
 
 # Generated files
 node_modules/
