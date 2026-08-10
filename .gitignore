@@ -6,6 +6,8 @@
 # Generated files
 node_modules/
 coverage/
+__pycache__/
+*.py[cod]
 *.log
 .DS_Store
 Thumbs.db

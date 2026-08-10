@@ -1,0 +1,194 @@
+{
+  "schemaVersion": 1,
+  "benchmark": {
+    "name": "DeepSWE v1.1",
+    "repository": "https://github.com/datacurve-ai/deep-swe",
+    "commit": "435ee89ec2f2e2289f33b0da4f992f0b7b7266b9",
+    "sourceArchive": "https://github.com/datacurve-ai/deep-swe/archive/435ee89ec2f2e2289f33b0da4f992f0b7b7266b9.tar.gz",
+    "sourceArchiveSha256": "34c6fabd3dad1770d753829378a81c3d8bb658ff255de9f01f3606e213cd2b46",
+    "license": "Apache-2.0"
+  },
+  "runner": {
+    "name": "Pier",
+    "repository": "https://github.com/datacurve-ai/pier",
+    "commit": "0daf53d3599e58c4506cf0bcff5e12c77dc282d2",
+    "version": "0.3.0"
+  },
+  "selection": {
+    "method": "Within each language, sort ascending by SHA-256(seed + LF + task_id), then take the declared quota.",
+    "seed": "Ockle DeepSWE v1.1 pilot 1",
+    "languageQuotas": {
+      "typescript": 3,
+      "javascript": 2,
+      "go": 3,
+      "python": 3,
+      "rust": 1
+    },
+    "selectionMechanismUsesPublicOutcomes": false
+  },
+  "execution": {
+    "model": "Mapleluv/deepseek-v4-flash",
+    "thinking": "max",
+    "repeats": 1,
+    "magicContext": false,
+    "piNativeCompaction": false,
+    "primaryArms": ["bare", "inner"],
+    "guardArmLanguages": ["javascript", "typescript"],
+    "behaviorAuthority": "DeepSWE v1.1 verifier",
+    "guardSafetyReportedSeparately": true,
+    "piVersion": "0.84.1",
+    "piTarballSha256": "a69a18596017e91955fd0fd677be69fab5b6ea01d5b06207bcee34ee1522bc20",
+    "piShrinkwrapSha256": "a724da15dc849d0ab2fe346845f8986b059ab89339a03a365b5910b23217c0c3",
+    "nodeVersion": "24.18.0",
+    "nodeArchiveSha256": "55aa7153f9d88f28d765fcdad5ae6945b5c0f98a36881703817e4c450fa76742",
+    "guardBundleSha256": "e02fa5139d7d7f7902dfab75798ad35c8d34502d811f97fddddf6fb30c1c27c6",
+    "egressProxyBaseImage": "ubuntu:24.04",
+    "egressProxyBaseImageDigest": "sha256:561618e2c15bf2397621dd04f96926663a3b5616c189cf7e38db7e82f5c538ea"
+  },
+  "tasks": [
+    {
+      "id": "fastapi-implicit-head-options",
+      "language": "python",
+      "repository": "fastapi/fastapi",
+      "baseCommit": "11614be9021aa4ac078d4d0693a8b5250a1010d8",
+      "taskChecksum": "93710dbb7b99553f1e0ab1199e475ec2f4c114aa5332872146ebbf07d9181518",
+      "preparedTaskChecksum": "7256fdbacfe45bcc96c00e825a98065f48c071f4aacdd5563b9258f172a827c4",
+      "image": "public.ecr.aws/d3j8x8q7/swe-bench-202605:kh7191qb52n5pfwh0a4yhahmt18343sn-v1.1",
+      "imageDigest": "sha256:5830f3a1fca2aec058e5c0bd26c69d678f6faf9454f1051b70748b28305d888f",
+      "selectionRank": "0c8abe71297537d150fcb95a5f3cd950cad80ef3f497f58c924d56a04002a642",
+      "arms": ["bare", "inner"]
+    },
+    {
+      "id": "go-critic-doc-link-checker",
+      "language": "go",
+      "repository": "go-critic/go-critic",
+      "baseCommit": "9aea378c4dccd6f4394196ad8f0873b3e84678c8",
+      "taskChecksum": "b5452dbcc2fb8e95da30093856c8e6490871ec64f85d3746118aee1b4d8d119e",
+      "preparedTaskChecksum": "680596d807195d9bd4fec7f81679174c3a87067cddd4f9d5fbdf883827c39430",
+      "image": "public.ecr.aws/d3j8x8q7/swe-bench-202605:kh727w7pxd9cv476t3cxptxcg182e1e5-v1.1",
+      "imageDigest": "sha256:f4388c446f0c29f48f5d43cebefff6e72af1121d3ce4d1e12404e77a2a455437",
+      "selectionRank": "0fa340746dfad58ff8757f44819748bb15a37226b89bfd4a2bff938025318062",
+      "arms": ["bare", "inner"]
+    },
+    {
+      "id": "helm-array-merge-strategies",
+      "language": "go",
+      "repository": "helm/helm",
+      "baseCommit": "42f78ba60edf531d5161e00d9819a7c34d976343",
+      "taskChecksum": "5b908354c92fca6dcb1ad856eeac74cfa9e79ebbb714eba29df72d98b3350654",
+      "preparedTaskChecksum": "bf0d5f21b09479765c95ddcf51d2f97b9e989ebe7b284d14098269458f9751d7",
+      "image": "public.ecr.aws/d3j8x8q7/swe-bench-202605:kh72a3qcr0kjpdr153havavn8s83bx8t-v1.1",
+      "imageDigest": "sha256:d8b573f9e37303fb1aeb03efbfbecb84be8ea2dabaefb34f09b66bb6f6c13721",
+      "selectionRank": "096e10b7d58d697a7b29322d5d53b4df6c6a38ae2259b818464aefdf01769d6b",
+      "arms": ["bare", "inner"]
+    },
+    {
+      "id": "kombu-virtual-queue-dead-lettering",
+      "language": "python",
+      "repository": "celery/kombu",
+      "baseCommit": "3c5c1bd86376ee73d52a4cc770bdaeab15bbc2f3",
+      "taskChecksum": "c6d4a446771410da367e85d380ecca929ac6c6d8f5281664591848d157171faa",
+      "preparedTaskChecksum": "ce9aa6c079842781d7e429d7ca306e52d8b7c79106c3dc6eeadbd3b918f704fe",
+      "image": "public.ecr.aws/d3j8x8q7/swe-bench-202605:kh72pgvncj82fnbfq2bvmy1qs183jdc5-v1.1",
+      "imageDigest": "sha256:5eb0511f22a9a89db4bdf19383d3a9e6c18793c17e28cbb1c4244756ff7bb483",
+      "selectionRank": "034fe23615c470f43122aaf627071588add781c18efc74144afa1bc4d4e1a416",
+      "arms": ["bare", "inner"]
+    },
+    {
+      "id": "koota-composite-trait-aspects",
+      "language": "typescript",
+      "repository": "pmndrs/koota",
+      "baseCommit": "9c434858b2b522002f8c5eb4a554fa8836a7cf3c",
+      "taskChecksum": "d77250ea0525605f29410e1d6b6067a9d471a10950601ee471a4d99b5106e4ab",
+      "preparedTaskChecksum": "b6a494734622182c03fcf954a8fa67e9a248c0a1ddd75e327e3b08311e8148a3",
+      "image": "public.ecr.aws/d3j8x8q7/swe-bench-202605:kh705e1hgmtj22pyetcmqa8ygs83bh33-v1.1",
+      "imageDigest": "sha256:7a3afca50b7b8a2181ec2706f235ea85eebaa731500e9137c434a4190567ac27",
+      "selectionRank": "04e668a4c94b4676df7f0b30ad75f21e83ab7c6724c70943b98c57e8e58c1b03",
+      "arms": ["bare", "inner", "full"]
+    },
+    {
+      "id": "pest-character-class-coalescing",
+      "language": "rust",
+      "repository": "pest-parser/pest",
+      "baseCommit": "79dd30d11aab6f0fba3cd79bd48f456209b966b3",
+      "taskChecksum": "659c79181f975c03b91b4ceeeec2f62791b6197abb99c7a20f72bd0fd519f94f",
+      "preparedTaskChecksum": "32b9b6e8c6f3ca44c18be418b9379aa65ba2c849955c268d7fb6200e8a276b6f",
+      "image": "public.ecr.aws/d3j8x8q7/swe-bench-202605:kh7bmp04pqht2pcvp8qce1afm582ph2j-v1.1",
+      "imageDigest": "sha256:3147fd9b5a532ba679ac2c933ddf16e7ade6f32ddcf3b2d93576f243be3bd6af",
+      "selectionRank": "02c317f47a11a40fe76d4f78b53a601e3b83a705931f3ab6152540aa272f9d89",
+      "arms": ["bare", "inner"]
+    },
+    {
+      "id": "sql-formatter-bigquery-pipe-formatting",
+      "language": "typescript",
+      "repository": "sql-formatter-org/sql-formatter",
+      "baseCommit": "954e5a474b9e3d45ca58f02a3a4eac8e1947acc5",
+      "taskChecksum": "4bc459d8f9b7629e4c501efa36d43dee71035ee03de4e28202f1279ffc6e4451",
+      "preparedTaskChecksum": "a1ff745bb6086aad1132071431757ba6628717bdb0e27f2152bdd518422641d4",
+      "image": "public.ecr.aws/d3j8x8q7/swe-bench-202605:kh712k0bfwxew9fvg12k70g59n83pw33-v1.1",
+      "imageDigest": "sha256:55cb06e5abda4330f35745e53a6485d53bc13db6732f4c40bff783c0bacc34e8",
+      "selectionRank": "0662f37f1c1f6f49c43203c226c4629233b6352ba9b40e54d148543abf54b4d2",
+      "arms": ["bare", "inner", "full"]
+    },
+    {
+      "id": "superjson-error-stack-serialization",
+      "language": "typescript",
+      "repository": "flightcontrolhq/superjson",
+      "baseCommit": "010c4bdb4b8758844fd44eacf38e42b22eba8aea",
+      "taskChecksum": "b64217db9bc774c2b08e6b4b9109261e6fb4f9f919147f208f1b6e33685fb166",
+      "preparedTaskChecksum": "6387cd6b020f3bfd9258f96e8fbc42435f046870cc4ef79170d6e5f4ca06f55d",
+      "image": "public.ecr.aws/d3j8x8q7/swe-bench-202605:kh701jywhzgddknqwzsq6npjv98226tq-v1.1",
+      "imageDigest": "sha256:ada56382a90fbe2dd01bde0f685a1bbd0ceac556f7b802199e60dbbca6e76387",
+      "selectionRank": "081d6ae7bab34b41c48da769b3e79bc6b8e5c06230d89dc23c0defc70e303573",
+      "arms": ["bare", "inner", "full"]
+    },
+    {
+      "id": "tengo-callable-instance-isolation",
+      "language": "go",
+      "repository": "d5/tengo",
+      "baseCommit": "3cad0da7a51b1206c6f01e3f4fbb44b976d5275c",
+      "taskChecksum": "c00ce7a322ade0428ec2e5588154f06fee12e1b9021f257fe3e3ee90855bb359",
+      "preparedTaskChecksum": "0685c21f384650a8d336e19676f5eff1943d1a721d22cc5133ec6ddcb143cf09",
+      "image": "public.ecr.aws/d3j8x8q7/swe-bench-202605:kh77n9t7ybdq9387d08jzdp1y183ffe6-v1.1",
+      "imageDigest": "sha256:4ef42ab32e07164ff16f4af59da104016a605cf436c6fde1be8c68745740582f",
+      "selectionRank": "08aa87dde9f3afd43a5a23a5c69bb10f2e328105aee6cb6869eefc7454e9eace",
+      "arms": ["bare", "inner"]
+    },
+    {
+      "id": "testem-bail-on-test-failure",
+      "language": "javascript",
+      "repository": "testem/testem",
+      "baseCommit": "06a1adb7a70e85e7322d8cfae3181508785de95d",
+      "taskChecksum": "340f661cd517527e029366c3a553f70ce50a93e752b7b3dbed1ab685f3cf98bb",
+      "preparedTaskChecksum": "127449ea79f8ae09b2f8b589ace12b7a169f14bca9c4a6cb793140ae901a9332",
+      "image": "public.ecr.aws/d3j8x8q7/swe-bench-202605:kh77k18d31qx7jj0c7nyv0xd8s82cznp-v1.1",
+      "imageDigest": "sha256:dfcfc6397b39c9b0ecdc08e1baf4588991f430c86c6e71eb2ca8fe646633cd71",
+      "selectionRank": "2cd96d474f92f3e9c76b50b96f43e0222116e92b64bf2ee65b74e6a44b30c6bc",
+      "arms": ["bare", "inner", "full"]
+    },
+    {
+      "id": "vulture-persistent-analysis-cache",
+      "language": "python",
+      "repository": "jendrikseipp/vulture",
+      "baseCommit": "1eb212f0a0707ad6f4c720bb2010c2b7517cf0f9",
+      "taskChecksum": "2d0df0c2dad51ce63a03767f5e8afb2053cfc12b1ab3e303d23d9bb4e2bf9043",
+      "preparedTaskChecksum": "d2df8e7028eaef222f85fdf2c76ab1ae29ff44a79ab6d5471778298551c0fbce",
+      "image": "public.ecr.aws/d3j8x8q7/swe-bench-202605:kh7992s6336c7yhv34x198jqy182zpmt-v1.1",
+      "imageDigest": "sha256:8834e8bc72c3e99dc09f4ccf205083d02678442feca66b45aea2708c43a2394b",
+      "selectionRank": "0af27226f195205e4ccd6f7b825fc81f68b007319bbdfcce5ec120f92c1c8af8",
+      "arms": ["bare", "inner"]
+    },
+    {
+      "id": "yjs-map-conflict-detection",
+      "language": "javascript",
+      "repository": "yjs/yjs",
+      "baseCommit": "7795050a749bd1111cbbdd9d0219b27226a8e710",
+      "taskChecksum": "f426867683b0808d06c66ddb607555eab1c27099e8464d7f30b4cf6564467957",
+      "preparedTaskChecksum": "a7f04d998faf2818734d4fe3d0a813890c5019d6dfca055c45f6ca53fc39968f",
+      "image": "public.ecr.aws/d3j8x8q7/swe-bench-202605:kh7fwz4nedevfex8ssk2p8xbt9836scp-v1.1",
+      "imageDigest": "sha256:91b1986f864befaef716579fa641d57051257ea5484515f9befd30a4f5d800ef",
+      "selectionRank": "6a628bb61e294d7f09769f700b017a5f5ebb0a80807147831a4a99dcce9a3454",
+      "arms": ["bare", "inner", "full"]
+    }
+  ]
+}

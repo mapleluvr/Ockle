@@ -1,0 +1,204 @@
+{
+  "schemaVersion": 1,
+  "role": "external difficulty calibration; not a Pi/Ockle control arm",
+  "officialHarness": "mini-swe-agent",
+  "officialConfig": "mini_swe_agent_deepseek_v4_flash_max",
+  "tasks": [
+    {
+      "taskId": "fastapi-implicit-head-options",
+      "passes": 1,
+      "attempts": 4,
+      "outcomes": [
+        "fail",
+        "pass",
+        "fail",
+        "fail"
+      ],
+      "meanSteps": 216.25,
+      "meanInputTokens": 27918326,
+      "meanOutputTokens": 117074,
+      "meanAgentSeconds": 1534.92919375
+    },
+    {
+      "taskId": "go-critic-doc-link-checker",
+      "passes": 0,
+      "attempts": 4,
+      "outcomes": [
+        "fail",
+        "fail",
+        "fail",
+        "fail"
+      ],
+      "meanSteps": 125,
+      "meanInputTokens": 11340153,
+      "meanOutputTokens": 87751.25,
+      "meanAgentSeconds": 1120.38482175
+    },
+    {
+      "taskId": "helm-array-merge-strategies",
+      "passes": 2,
+      "attempts": 4,
+      "outcomes": [
+        "fail",
+        "pass",
+        "fail",
+        "pass"
+      ],
+      "meanSteps": 175,
+      "meanInputTokens": 26222170.75,
+      "meanOutputTokens": 113253,
+      "meanAgentSeconds": 1782.29246275
+    },
+    {
+      "taskId": "kombu-virtual-queue-dead-lettering",
+      "passes": 1,
+      "attempts": 4,
+      "outcomes": [
+        "fail",
+        "fail",
+        "fail",
+        "pass"
+      ],
+      "meanSteps": 145.75,
+      "meanInputTokens": 18301288,
+      "meanOutputTokens": 128909.5,
+      "meanAgentSeconds": 1372.599253
+    },
+    {
+      "taskId": "koota-composite-trait-aspects",
+      "passes": 0,
+      "attempts": 4,
+      "outcomes": [
+        "fail",
+        "fail",
+        "fail",
+        "fail"
+      ],
+      "meanSteps": 140.5,
+      "meanInputTokens": 22718014,
+      "meanOutputTokens": 124034.5,
+      "meanAgentSeconds": 1459.368462
+    },
+    {
+      "taskId": "pest-character-class-coalescing",
+      "passes": 1,
+      "attempts": 4,
+      "outcomes": [
+        "pass",
+        "fail",
+        "fail",
+        "fail"
+      ],
+      "meanSteps": 153.25,
+      "meanInputTokens": 20226925.5,
+      "meanOutputTokens": 97811.75,
+      "meanAgentSeconds": 1344.6291245
+    },
+    {
+      "taskId": "sql-formatter-bigquery-pipe-formatting",
+      "passes": 3,
+      "attempts": 4,
+      "outcomes": [
+        "pass",
+        "pass",
+        "fail",
+        "pass"
+      ],
+      "meanSteps": 129.75,
+      "meanInputTokens": 16003673.25,
+      "meanOutputTokens": 92259.5,
+      "meanAgentSeconds": 1372.0071054999999
+    },
+    {
+      "taskId": "superjson-error-stack-serialization",
+      "passes": 0,
+      "attempts": 4,
+      "outcomes": [
+        "fail",
+        "fail",
+        "fail",
+        "fail"
+      ],
+      "meanSteps": 74.25,
+      "meanInputTokens": 6511189.75,
+      "meanOutputTokens": 98913,
+      "meanAgentSeconds": 1062.73164025
+    },
+    {
+      "taskId": "tengo-callable-instance-isolation",
+      "passes": 2,
+      "attempts": 4,
+      "outcomes": [
+        "fail",
+        "pass",
+        "pass",
+        "fail"
+      ],
+      "meanSteps": 121.5,
+      "meanInputTokens": 13428486.5,
+      "meanOutputTokens": 108755,
+      "meanAgentSeconds": 1253.4942167499999
+    },
+    {
+      "taskId": "testem-bail-on-test-failure",
+      "passes": 0,
+      "attempts": 4,
+      "outcomes": [
+        "fail",
+        "fail",
+        "fail",
+        "fail"
+      ],
+      "meanSteps": 153.75,
+      "meanInputTokens": 20535793,
+      "meanOutputTokens": 117282.75,
+      "meanAgentSeconds": 1418.33865125
+    },
+    {
+      "taskId": "vulture-persistent-analysis-cache",
+      "passes": 2,
+      "attempts": 4,
+      "outcomes": [
+        "fail",
+        "fail",
+        "pass",
+        "pass"
+      ],
+      "meanSteps": 128.75,
+      "meanInputTokens": 13502741,
+      "meanOutputTokens": 111642.25,
+      "meanAgentSeconds": 1240.989668
+    },
+    {
+      "taskId": "yjs-map-conflict-detection",
+      "passes": 3,
+      "attempts": 4,
+      "outcomes": [
+        "fail",
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "meanSteps": 155.75,
+      "meanInputTokens": 19190857.5,
+      "meanOutputTokens": 112923.25,
+      "meanAgentSeconds": 1444.48037175
+    }
+  ],
+  "aggregate": {
+    "passes": 15,
+    "attempts": 48,
+    "passRate": 0.3125,
+    "zeroOfFourTasks": 4,
+    "mixedTasks": 8,
+    "fourOfFourTasks": 0,
+    "meanSteps": 143.29166666666666,
+    "meanOutputTokens": 109217.47916666667,
+    "meanAgentSeconds": 1367.1870809375
+  },
+  "source": {
+    "url": "https://deepswe.datacurve.ai/data/v1.1",
+    "snapshotSha256": "69d82aed6bb6b5c43ee86ba3aed9e017e12e7785035df79fa7aaaad81124b28a",
+    "reportedTrials": 23942
+  }
+}
