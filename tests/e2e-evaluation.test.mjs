@@ -6,6 +6,7 @@ import {
   mkdirSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import os from "node:os";
@@ -48,7 +49,7 @@ import { RpcClient } from "../evals/e2e/rpc-client.mjs";
 import { createRunEnvironment, prepareRunDirectories, resolveRuntimePaths } from "../evals/e2e/runtime.mjs";
 import { SCENARIOS, getScenario } from "../evals/e2e/scenarios.mjs";
 import { findSessionFile, readSessionEvidence } from "../evals/e2e/session-evidence.mjs";
-import { shouldRequestAuthorizationRecovery } from "../evals/e2e/subject-runtime.mjs";
+import { authorizedResumeInstruction, shouldRequestAuthorizationRecovery } from "../evals/e2e/subject-runtime.mjs";
 import { applyReferenceSolution } from "./fixtures/e2e-reference.mjs";
 
 const EXPECTED_TOOLS = ["read", "bash", "edit", "write"];
@@ -211,6 +212,15 @@ test("scenarios exercise method chaining, compatibility veto and trusted authori
     "receiving-code-review",
   ]);
   assert.equal(getScenario("authorized-resume").restart, true);
+});
+
+test("authorized resume tells the model to use the staged candidate without recreating it", () => {
+  const instruction = authorizedResumeInstruction({ authorization: { receipt: {} } });
+  assert.match(instruction, /already staged/i);
+  assert.match(instruction, /do not edit or recreate/i);
+  assert.match(instruction, /npm test/);
+  assert.match(instruction, /git commit -m authorized-contract/);
+  assert.match(authorizedResumeInstruction(null), /did not issue an authorization receipt/i);
 });
 
 test("authorization recovery is externally triggered and bounded", () => {
@@ -407,6 +417,8 @@ test("audit boundary blocks external files, shell expansion, operators and prote
     assert.equal((await handlers.get("tool_call")({ toolName: "read", input: { path: path.join(directory, "outside.txt") } }, context)).block, true);
     assert.equal((await handlers.get("tool_call")({ toolName: "read", input: { path: path.join(repository, ".git", "config") } }, context)).block, true);
     assert.equal((await handlers.get("tool_call")({ toolName: "write", input: { path: path.join(repository, ".npmrc") } }, context)).block, true);
+    assert.equal((await handlers.get("tool_call")({ toolName: "write", input: { path: path.join(repository, ".npmrc-global") } }, context)).block, true);
+    assert.equal((await handlers.get("tool_call")({ toolName: "write", input: { path: path.join(repository, "tmp-npmrc") } }, context)).block, true);
     assert.equal((await handlers.get("tool_call")({ toolName: "edit", input: { path: path.join(repository, ".git", "hooks", "pre-commit") } }, context)).block, true);
     assert.equal((await handlers.get("tool_call")({ toolName: "edit", input: { path: path.join(repository, "package.json") } }, context)).block, true);
     assert.equal(await handlers.get("tool_call")({ toolName: "bash", input: { command: "git add src test && git commit -m verified" } }, context), undefined);
@@ -487,25 +499,71 @@ export function writeOutside() { writeFileSync(${JSON.stringify(sentinel)}, "mut
   }
 });
 
-test("candidate test runner cannot read or write outside its fixture", () => {
+test("candidate tests use a disposable writable copy and cannot cross its boundary", () => {
   const directory = mkdtempSync(path.join(os.tmpdir(), "ockle-test-boundary-"));
   const repository = path.join(directory, "repo");
   const outside = path.join(directory, "outside.txt");
   const sentinel = path.join(directory, "sentinel.txt");
+  const trustedAudit = path.join(directory, "trusted-test-audit.jsonl");
+  const testPath = path.join(repository, "test", "public.test.mjs");
   try {
     prepareFixture({ repository, scenarioId: "compatibility-veto", condition: "bare" });
     writeFileSync(outside, "host-secret", "utf8");
-    writeFileSync(path.join(repository, "test", "public.test.mjs"), `
+    writeFileSync(testPath, `
+import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
 export async function run() {
-  readFileSync(${JSON.stringify(outside)}, "utf8");
-  writeFileSync(${JSON.stringify(sentinel)}, "mutated");
+  assert.equal(process.env.OCKLE_E2E_TEST_AUDIT_PATH, undefined);
+  writeFileSync("generated-config.json", "local-value");
+  assert.equal(readFileSync("generated-config.json", "utf8"), "local-value");
+  let missingCode = "";
+  try { readFileSync("missing-config.json", "utf8"); } catch (error) { missingCode = error.code; }
+  assert.equal(missingCode, "ENOENT");
 }
 `, "utf8");
-    const result = runFixtureTest({ repository, mode: "public" });
-    assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /ERR_ACCESS_DENIED|restricted/i);
+    const local = runFixtureTest({ repository, mode: "public", auditPath: trustedAudit });
+    assert.equal(local.status, 0, local.stderr);
+    assert.equal(existsSync(path.join(repository, "generated-config.json")), false);
+    const trustedRecords = readFileSync(trustedAudit, "utf8").trim().split("\n").map(JSON.parse);
+    assert.equal(trustedRecords.length, 1);
+    assert.equal(trustedRecords[0].mode, "public");
+    assert.equal(trustedRecords[0].passed, true);
+    assert.match(trustedRecords[0].sourceDigest, /^[a-f0-9]{64}$/);
+
+    writeFileSync(testPath, `
+import { readFileSync } from "node:fs";
+export async function run() { readFileSync(${JSON.stringify(outside)}, "utf8"); }
+`, "utf8");
+    const externalRead = runFixtureTest({ repository, mode: "public" });
+    assert.notEqual(externalRead.status, 0);
+    assert.match(externalRead.stderr, /ERR_ACCESS_DENIED|restricted/i);
+
+    writeFileSync(testPath, `
+import { writeFileSync } from "node:fs";
+export async function run() { writeFileSync(${JSON.stringify(sentinel)}, "mutated"); }
+`, "utf8");
+    const externalWrite = runFixtureTest({ repository, mode: "public" });
+    assert.notEqual(externalWrite.status, 0);
+    assert.match(externalWrite.stderr, /ERR_ACCESS_DENIED|restricted/i);
     assert.equal(existsSync(sentinel), false);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("candidate test copies reject fixture symlinks before execution", () => {
+  const directory = mkdtempSync(path.join(os.tmpdir(), "ockle-test-symlink-"));
+  const repository = path.join(directory, "repo");
+  const outside = path.join(directory, "outside");
+  try {
+    prepareFixture({ repository, scenarioId: "compatibility-veto", condition: "bare" });
+    mkdirSync(outside);
+    writeFileSync(path.join(outside, "secret.txt"), "host-secret", "utf8");
+    symlinkSync(outside, path.join(repository, "src", "linked-out"), "junction");
+    assert.throws(
+      () => runFixtureTest({ repository, mode: "public" }),
+      /fixture symlinks are not supported/,
+    );
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }

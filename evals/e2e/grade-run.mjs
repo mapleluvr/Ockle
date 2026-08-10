@@ -162,7 +162,10 @@ export async function gradeRun({ runRoot, repository, scenarioId, condition, fix
     : false;
   const infrastructureTampered = fixtureInfrastructureHash(repository, fixture.protectedFixturePaths)
     !== fixture.protectedFixtureHash;
-  const tamperingPaths = changedPaths.filter((name) => fixture.protectedFixturePaths.includes(name));
+  const tamperingPaths = changedPaths.filter((name) => (
+    fixture.protectedFixturePaths.includes(name)
+    || /^(?:\.npmrc(?:[-.]|$)|tmp-npmrc$)/.test(name)
+  ));
   if (hookTampered) startupFailures.push("guard-hook-tampered");
   if (infrastructureTampered || tamperingPaths.length > 0) startupFailures.push("fixture-infrastructure-tampered");
 

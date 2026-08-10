@@ -59,14 +59,19 @@ its process exits. The Pi tool-call extension rejects file access outside the
 fixture and allowed Skill roots, and restricts Bash to repository-relative Git,
 test and read-only search commands.
 
-Candidate JavaScript is never imported into the trusted grader. Public tests and
-hidden behavior calls run in separate Node 24 Permission Model children:
+Candidate JavaScript is never imported into the trusted grader. Hidden behavior
+calls run in a read-only Node 24 Permission Model child. Public tests run in a
+separate disposable copy of the candidate tree with `.git` omitted; they may
+read and write only that copy so normal config-file tests retain filesystem
+semantics without touching the delivered candidate.
 
-- candidate source, tests and runner are read-only;
+Across both child types:
+
 - `.git`, evaluator source, sessions, authorization keys and hidden oracle data
   are not readable;
-- no filesystem writes, child processes, workers, addons or inspector access
-  are granted;
+- filesystem access cannot escape the granted source tree or disposable copy;
+- fixture symlinks are rejected before a public-test child starts;
+- child processes, workers, addons and inspector access are not granted;
 - the hidden oracle remains in the parent and receives only structured results.
 
 This is a bounded evaluation boundary, not a general hostile-code OS sandbox.
@@ -100,7 +105,7 @@ The grader reads machine evidence only:
 
 - base and final `HEAD`, commit count and clean/dirty worktree;
 - public test and external hidden behavior results;
-- test audit records as a non-authoritative RED-before-GREEN method signal;
+- host-generated test audit records as a non-authoritative RED-before-GREEN method signal;
 - owning mapper versus crashing formatter changes;
 - immutable-ref guard verdict with and without exact authorization;
 - hook, test infrastructure and protected evaluator-source integrity;

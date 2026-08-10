@@ -62,7 +62,7 @@ function fileBoundaryReason(toolName, input, cwd, boundary) {
       : "read path is outside the repository and allowed Skill roots";
   }
   if (!within(target, boundary.repository)) return "write path is outside the repository";
-  if (/^(?:scripts(?:\/|$)|package(?:-lock)?\.json$|\.npmrc$|\.gitattributes$)/.test(relative)) {
+  if (/^(?:scripts(?:\/|$)|package(?:-lock)?\.json$|\.npmrc(?:[-.]|$)|tmp-npmrc$|\.gitattributes$)/.test(relative)) {
     return `write path is evaluator-protected: ${relative}`;
   }
   return null;

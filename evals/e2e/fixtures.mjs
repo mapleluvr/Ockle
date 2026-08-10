@@ -22,52 +22,16 @@ function packageFile() {
   }, null, 2)}\n`;
 }
 
-const TEST_RUNNER = `import { createHash } from "node:crypto";
-import { appendFileSync, existsSync, readdirSync, readFileSync } from "node:fs";
-import path from "node:path";
+const TEST_RUNNER = `import path from "node:path";
 import { pathToFileURL } from "node:url";
-
-function filesBelow(directory) {
-  if (!existsSync(directory)) return [];
-  const found = [];
-  for (const entry of readdirSync(directory, { withFileTypes: true })) {
-    const target = path.join(directory, entry.name);
-    if (entry.isDirectory()) found.push(...filesBelow(target));
-    else found.push(target);
-  }
-  return found;
-}
-
-function digestFiles(directories) {
-  const hash = createHash("sha256");
-  for (const file of directories.flatMap(filesBelow).sort()) {
-    hash.update(file.replaceAll("\\\\", "/"));
-    hash.update(readFileSync(file));
-  }
-  return hash.digest("hex");
-}
 
 const mode = process.argv[2] ?? "public";
 const targets = mode === "ci" ? ["test/public.test.mjs", "test/ci.test.mjs"] : ["test/public.test.mjs"];
-const record = {
-  at: Date.now(),
-  mode,
-  sourceDigest: digestFiles(["src"]),
-  testDigest: digestFiles(["test"]),
-  targets,
-  passed: false,
-};
-try {
-  for (const target of targets) {
-    const module = await import(pathToFileURL(path.resolve(target)).href + "?" + Date.now());
-    await module.run();
-  }
-  record.passed = true;
-  console.log("PASS " + mode);
-} finally {
-  const audit = process.env.OCKLE_E2E_TEST_AUDIT_PATH;
-  if (audit) appendFileSync(audit, JSON.stringify(record) + "\\n");
+for (const target of targets) {
+  const module = await import(pathToFileURL(path.resolve(target)).href + "?" + Date.now());
+  await module.run();
 }
+console.log("PASS " + mode);
 `;
 
 function commonFiles() {
