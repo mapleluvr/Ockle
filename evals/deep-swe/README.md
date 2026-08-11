@@ -69,12 +69,13 @@ A no-model Pier boundary probe additionally verified non-root UID, writable `/ap
 
 ## Adapter Checks
 
-Run the platform-specific adapter tests in the pinned Pier environment:
+Run the platform-specific adapter and replication tests in the pinned Pier environment:
 
 ```sh
 cd /mnt/d/Projects/Ockle/evals/deep-swe
 /home/administrator/.local/share/uv/tools/datacurve-pier/bin/python \
-  -m unittest -v test_pi_agent.py
+  -m unittest -v \
+  test_pi_agent.py test_replication.py test_replication_artifacts.py
 ```
 
 Run repository structure tests from the Ockle root:
@@ -94,6 +95,23 @@ The 29-cell Anthropic-protocol r5 run is bound to checkpoint `b5d7db4be95c51f44b
 After building the exact guard bundle and materializing the source archive, `run_pilot.py` is a one-shot 29-cell launcher. It has no condition or alternate-manifest CLI, invokes Pier through the RECORD-verified Python distribution, rejects a dirty Ockle tree or pre-existing output, validates every expected task result and generated proxy policy after each arm, scans artifacts for the exact credential, and writes `summary.json` only after all three arms validate.
 
 `regrade_formal_r5.py` is the bounded read-only correction procedure for r5. It hard-binds the original cells, manifest, checkpoint, and canonical 982-file source inventory digests; revalidates every raw session, continuation, proxy, final Git, guard, security, reward, and Pier RECORD input; and writes a new hash-bound artifact without overwriting the source run.
+
+## Replication V1
+
+`replication-v1.json` freezes a result-aware, post-hoc replication of the r5 directional differences. It is not a new unbiased benchmark sample and must not be pooled with the twelve-task pilot as if selected prospectively.
+
+The replication keeps two frozen pilot tasks:
+
+- `sql-formatter-bigquery-pipe-formatting`: ten attempts each for `bare`, `inner`, and `full`.
+- `tengo-callable-instance-isolation`: ten attempts each for `bare` and `inner`.
+
+This produces exactly 50 independent Pier trials. Three Pier jobs launch concurrently and use native `--n-attempts 10`: `bare` has concurrency 3, `inner` concurrency 3, and `full` concurrency 2, for a fixed global maximum of 8 trials. Retry count is zero. Trials are never replaced after outcomes are visible. Within each task and condition, repeat indexes 1 through 10 are assigned only after all trials exit by `(started_at, trial_name)` order; directory names do not define the repeat.
+
+The DeepSWE binary reward remains the behavior authority. An exact 5,400-second agent timeout retains the verifier reward and remains a valid benchmark outcome, but its execution status is `timeout` and it can never be complete. A terminal provider error, malformed session, missing result, credential leak, evidence drift, or unknown exception is invalid and is excluded from the valid-outcome denominator rather than imputed as zero. Summaries report task-by-condition successes, valid denominators, Wilson 95% intervals, timeouts, recovered and terminal provider-error records separately, tokens, steps, and condition pairs for each repeat index. Guard safety remains a separate axis.
+
+Before model execution, `run_replication_preflight.py` runs the exact same 50-cell task/condition/attempt/concurrency shape with `BoundaryProbeAgent`. It makes no Pi model calls and requires all 50 trials to verify non-root execution, writable `/app`, read-only trusted assets, hidden oracle, authenticated Main-MSG reachability, blocked public proxy/direct paths, exact proxy policy bytes, verifier execution, prepared task identity, and clean host credential scans.
+
+Both launchers accept only an externally materialized canonical prepared root, a fresh external output path, the mode-`0600` Main-MSG secret file, and the canonical guard bundle. Concurrency, tasks, attempts, arms, model, and retry policy are not CLI options. They reject a dirty Ockle checkpoint, a pre-existing output, prepared-data drift, Pier RECORD drift, guard drift, replay-affecting Pier config/lock drift, or task-content digest drift. After every subject exits and host scanning completes, the launcher inventories every regular evidence file by relative path, byte count, and SHA-256; it scans that inventory twice for mutation, writes `attestation.json`, and publishes `COMPLETE` last as the attestation SHA-256. The formal launcher is `run_replication.py`; it never writes aggregate evidence unless exactly 50 cell identities validate.
 
 ## Limitations
 

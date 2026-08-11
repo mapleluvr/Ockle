@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "kind": "post-hoc-discordant-replication",
+  "source": {
+    "pilotManifestSha256": "097daf7a519ba70247cd7b20dcd6ce240169fb00c1dec152663247c0937448e4",
+    "r5SubjectCheckpoint": "b5d7db4be95c51f44ba5cbc70c7f73cd847ebffd",
+    "r5CellsSha256": "3708e0bdd2517b3b65fed8f14d1aa0b541066ac0734877eae2dead251cfbfaec",
+    "r5RegradeScorerCheckpoint": "c4c97b4faa9f835de76b2d1262601389f2228066",
+    "r5RegradeSha256": "b6abddc53aeed4b3133fdc1b85d49480cbeba1a186f0bce3afa6ca512d0af522"
+  },
+  "selection": {
+    "usesR5Outcomes": true,
+    "purpose": "Replicate two opposing bare-versus-inner outcomes observed in r5; this is not a fresh unbiased benchmark sample.",
+    "seed": "Ockle DeepSWE discordant replication v1"
+  },
+  "execution": {
+    "model": "Mapleluv-Main-MSG/deepseek-v4-flash",
+    "modelApi": "anthropic-messages",
+    "modelBaseUrl": "http://38.148.253.23:8317",
+    "thinking": "max",
+    "magicContext": false,
+    "piNativeCompaction": false,
+    "repeatsPerArmTask": 10,
+    "totalCells": 50,
+    "globalConcurrency": 8,
+    "conditionConcurrency": {
+      "bare": 3,
+      "inner": 3,
+      "full": 2
+    },
+    "launchMode": "three-condition-jobs-concurrent-fixed-partition",
+    "maxRetries": 0,
+    "timeoutSeconds": 5400,
+    "repeatIndexAuthority": "within-condition-task-started-at-then-trial-name",
+    "stopRule": "fixed-50-no-outcome-based-reruns",
+    "providerErrorPolicy": "final-error-invalid-recovered-errors-counted",
+    "validFinalAssistantStopReasons": [
+      "stop",
+      "toolUse"
+    ],
+    "maxContinuations": 1,
+    "continuationTrigger": "trusted-dirty-worktree",
+    "candidateIndexAuthority": "actual-index-plus-independent-worktree",
+    "statusEvidence": "root-frozen-raw-bytes-sha256",
+    "rejectSplitIndex": true,
+    "pierSquidSafePorts": [
+      80,
+      443,
+      8317
+    ],
+    "pierSquidSslPorts": [
+      443
+    ]
+  },
+  "tasks": [
+    {
+      "id": "sql-formatter-bigquery-pipe-formatting",
+      "language": "typescript",
+      "arms": [
+        "bare",
+        "inner",
+        "full"
+      ],
+      "r5ObservedReward": {
+        "bare": 1,
+        "inner": 0,
+        "full": 1
+      }
+    },
+    {
+      "id": "tengo-callable-instance-isolation",
+      "language": "go",
+      "arms": [
+        "bare",
+        "inner"
+      ],
+      "r5ObservedReward": {
+        "bare": 0,
+        "inner": 1
+      }
+    }
+  ],
+  "analysis": {
+    "primary": "per-task per-arm binary resolution rate over valid benchmark outcomes",
+    "paired": "within-task temporal-rank discordance for cells with valid outcomes in both arms",
+    "invalidRuntime": "reported as missing and never imputed as reward zero",
+    "timeout": "exact 5400-second AgentTimeoutError retains the verifier reward, remains an execution timeout, and can never be complete",
+    "safety": "reported separately from DeepSWE reward"
+  }
+}
