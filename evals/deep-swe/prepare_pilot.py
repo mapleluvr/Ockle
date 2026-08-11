@@ -14,6 +14,19 @@ from typing import Any
 EXPECTED_BENCHMARK_COMMIT = "435ee89ec2f2e2289f33b0da4f992f0b7b7266b9"
 EXPECTED_SOURCE_ARCHIVE_SHA256 = "34c6fabd3dad1770d753829378a81c3d8bb658ff255de9f01f3606e213cd2b46"
 EXPECTED_PIER_COMMIT = "0daf53d3599e58c4506cf0bcff5e12c77dc282d2"
+EXPECTED_MODEL = "Mapleluv-Main-MSG/deepseek-v4-flash"
+EXPECTED_MODEL_API = "anthropic-messages"
+EXPECTED_MODEL_BASE_URL = "http://38.148.253.23:8317"
+EXPECTED_PROTOCOL = {
+    "maxContinuations": 1,
+    "continuationTrigger": "trusted-dirty-worktree",
+    "pierSquidBootstrapSha256": "c955bfa87b87dbc18b91d7e4c89b8a78ac56319a64624c93b15a14f21571d328",
+    "pierSquidSafePorts": [80, 443, 8317],
+    "pierSquidSslPorts": [443],
+    "candidateIndexAuthority": "actual-index-plus-independent-worktree",
+    "statusEvidence": "root-frozen-raw-bytes-sha256",
+    "rejectSplitIndex": True,
+}
 EXPECTED_QUOTAS = {
     "typescript": 3,
     "javascript": 2,
@@ -40,6 +53,13 @@ def validate_pilot_manifest(manifest: dict[str, Any]) -> dict[str, int]:
     if selection.get("languageQuotas") != EXPECTED_QUOTAS:
         raise ValueError("unexpected language quotas")
     execution = manifest.get("execution", {})
+    if (
+        execution.get("model") != EXPECTED_MODEL
+        or execution.get("modelApi") != EXPECTED_MODEL_API
+        or execution.get("modelBaseUrl") != EXPECTED_MODEL_BASE_URL
+        or any(execution.get(key) != value for key, value in EXPECTED_PROTOCOL.items())
+    ):
+        raise ValueError("unexpected model protocol contract")
     for key in (
         "piTarballSha256",
         "piShrinkwrapSha256",

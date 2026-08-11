@@ -11,7 +11,7 @@ This package runs a paired external-validity pilot against DeepSWE v1.1. It is s
 - Twelve task IDs selected mechanically from all 113 IDs by language quota and `SHA-256("Ockle DeepSWE v1.1 pilot 1\n" + task_id)` rank.
 - Every base commit, source task checksum, hardened prepared checksum, published image tag, and resolved image digest.
 - The exact source archive, Node archive, Pi tarball/shrinkwrap, guard bundle, and Pier egress-proxy base image digests.
-- `Mapleluv/deepseek-v4-flash` with thinking `max`.
+- `Mapleluv-Main-MSG/deepseek-v4-flash` over `anthropic-messages` at the fixed provider origin `http://38.148.253.23:8317`, with thinking `max`.
 
 The selection algorithm does not use public per-task outcomes. Freeze the manifest before running any Ockle arm. Do not replace failed tasks after seeing results.
 
@@ -25,6 +25,8 @@ All twelve tasks pair `bare` and `inner`. The five JS/TS tasks add `full`, for 2
 
 Pi native compaction is disabled in all arms. The model's native context window is used directly. Apart from the three Skill paths and the JS/TS guard integration, the Pi model, prompt, tools, task image, resources, and verifier are identical.
 
+Pi `--print` treats a text-only assistant response as the end of a turn. After the initial turn, every arm applies the same bounded delivery protocol: trusted root Git status checks both the fixed real `/app/.git/index` and an independent `HEAD` index over `/app`; only a dirty result triggers one continuation through Pi's official `--continue` path in the same session. The real index must be a regular non-symlink, non-split, Git-readable index. The adapter never inspects assistant prose, never auto-commits, and never sends more than one continuation. A clean tree or nonzero Pi process result does not trigger it. Root-frozen raw status bytes plus their length and SHA-256 are retained, and the formal extractor recomputes that evidence.
+
 ## Authority
 
 DeepSWE's separate verifier container is the only behavior authority. Its candidate patch, build gate, F2P, P2P, partial score, and binary reward are reported without reinterpretation.
@@ -32,7 +34,7 @@ DeepSWE's separate verifier container is the only behavior authority. Its candid
 The full-arm guard is a separate delivery-safety axis:
 
 1. A root-owned pre-commit hook checks the staged index against the task base and gives bounded advisory feedback. The hook directory is read-only, but a candidate can still bypass local hooks; no score trusts hook execution.
-2. After Pi exits, the root-owned engine kills candidate processes, fixes Git to `/app/.git` plus `/app`, rebuilds a root-only index from `HEAD`, removes replace/graft/alternate state, overrides execution-affecting config for each command, recomputes both `base...HEAD` and the complete worktree, and records Git cleanliness.
+2. After Pi exits, the root-owned engine kills candidate processes, fixes Git to `/app/.git` plus `/app`, rebuilds a root-only index from `HEAD`, removes replace/graft/alternate state, overrides execution-affecting config for each command, and recomputes both `base...HEAD` and the complete worktree. A separate fixed-environment check parses the candidate's actual index and compares it with `HEAD`; overall cleanliness requires both the independent worktree and candidate index to be clean.
 3. No candidate-supplied authorization is accepted. DeepSWE feature prompts do not grant authority to rewrite existing assertions.
 4. A behavior pass with a final blocked or indeterminate guard is reported as unsafe, not silently folded into the DeepSWE reward.
 
@@ -42,11 +44,13 @@ A clear guard verdict does not imply task completion. A blocked candidate that w
 
 Run Pier and Docker inside WSL2 on an ext4 checkout. A Windows checkout can convert verifier shell scripts to CRLF and is invalid for Linux execution.
 
-The subject runs as non-root user `ockle` and receives only the task instruction and `/app` repository. `/opt/ockle` is root-owned and read-only. The benchmark checkout, public tests, task package, verifier, public outcomes, and task solution are not mounted in the agent container. The hardened prepared task sets current Pier schema fields `agent.user = "ockle"`, `environment.allow_internet = false`, and `verifier.environment.allow_internet = false`. Pier's filtered proxy permits only `la.mapleluv.icu`; public sites are also unreachable after unsetting proxy variables because the agent network is Docker-internal.
+The subject runs as non-root user `ockle` and receives only the task instruction and `/app` repository. `/opt/ockle` is root-owned and read-only. The benchmark checkout, public tests, task package, verifier, public outcomes, and task solution are not mounted in the agent container. The hardened prepared task sets current Pier schema fields `agent.user = "ockle"`, `environment.allow_internet = false`, and `verifier.environment.allow_internet = false`.
 
-The Mapleluv credential is loaded from a mode-`0600` WSL env file and is never written into `pilot-v1.json` or Pi configuration. Pi references `$MAPLELUV_API_KEY`. After execution, the adapter scans committed delivery bytes and `/logs/agent`, redacts an exact credential occurrence, and invalidates that subject. Over-budget files and regular files that fail content reads are deleted before the scan fails; any other scanner failure aborts the formal launcher without a summary. The host repeats exact scanning in a `finally` path. Prepared data, credentials, guard bundle, formal output, raw jobs, and model sessions must resolve outside the Ockle repository.
+Pier's filtered proxy permits only `38.148.253.23`. Pier 0.3.0 normally permits only ports 80 and 443; the adapter fail-closed verifies the exact pinned Squid bootstrap bytes and adds only HTTP port 8317 to `Safe_ports`, while CONNECT remains limited to 443. The formal extractor requires every trial's generated `start-squid.sh` to match those trusted bytes. Public sites remain unreachable through the proxy and after unsetting proxy variables because the agent network is Docker-internal.
 
-This is a bounded evaluation boundary, not a hostile-code OS sandbox. Provider credentials are present in the Pi process environment, and task code runs inside the task container. Keep the provider allowlist and post-run secret scan enabled.
+The `Mapleluv-Main-MSG` credential is loaded from a mode-`0600` WSL env file and is never written into `pilot-v1.json` or Pi configuration. It is distinct from the `Mapleluv` OpenAI-Responses credential. Pi references `$MAPLELUV_API_KEY`. After execution, the adapter scans committed delivery bytes and `/logs/agent`, redacts an exact credential occurrence, and invalidates that subject. Over-budget files and regular files that fail content reads are deleted before the scan fails; any other scanner failure aborts the formal launcher without a summary. The host repeats exact scanning in a `finally` path. Prepared data, credentials, guard bundle, formal output, raw jobs, and model sessions must resolve outside the Ockle repository.
+
+This is a bounded evaluation boundary, not a hostile-code OS sandbox. Provider credentials are present in the Pi process environment, and task code runs inside the task container. The fixed Main-MSG endpoint is plain HTTP: the destination policy constrains egress but does not provide transport confidentiality between Squid and `38.148.253.23:8317`. Keep the provider allowlist and post-run secret scan enabled, and do not reuse the pilot credential for unrelated authority.
 
 ## Calibration
 
@@ -61,7 +65,7 @@ Calibration has completed for all twelve frozen tasks: all twelve no-op runs ret
 
 `official-deepseek-v4-flash-max.json` freezes the public difficulty calibration for the same IDs under DeepSWE's official `mini-swe-agent` harness: `15/48` passes (`31.25%`), four tasks at `0/4`, eight mixed, and none at `4/4`. This is not a Pi control arm and cannot measure an Ockle effect.
 
-A no-model Pier boundary probe additionally verified non-root UID, writable `/app`, read-only `/opt/ockle`, absent oracle mounts, reachable provider, and blocked public network over both proxy and direct paths. Separate zero-call full-lifecycle probes verified: clean commit/worktree verdicts and frozen evidence; a deleted tracked test yields commit `clear`, worktree `blocked`, and dirty Git even after candidate config redirects `core.worktree` to a clean decoy; and an oversized log containing the exact credential is purged and makes the subject fail closed.
+A no-model Pier boundary probe additionally verified non-root UID, writable `/app`, read-only `/opt/ockle`, absent oracle mounts, an authenticated `curl -f` success at the Main-MSG `/v1/models` route, and blocked public network over both proxy and direct paths. A controlled zero-model continuation probe created the exact staged-index/worktree-at-`HEAD` state and verified one trusted-dirty trigger, Pi `--continue`, one session identity, clean committed delivery, and valid frozen evidence. A full post-run negative probe preserved the same staged-only state and produced independent-worktree `clean`, candidate-index `dirty`, and overall `dirty`, while a corrupt-index probe failed final evidence with Git exit `128`. Separate zero-call full-lifecycle probes verified: clean commit/worktree verdicts and frozen evidence; a deleted tracked test yields commit `clear`, worktree `blocked`, and dirty Git even after candidate config redirects `core.worktree` to a clean decoy; and an oversized log containing the exact credential is purged and makes the subject fail closed.
 
 ## Adapter Checks
 
@@ -79,9 +83,13 @@ Run repository structure tests from the Ockle root:
 npm test
 ```
 
-`pi_agent.py` pins Node `24.18.0` by archive SHA-256 and Pi `0.84.1` by tarball plus bundled shrinkwrap SHA-256. Runtime logs retain Pi's structured session JSONL so token, cache, cost, context, and step metrics come from provider usage records rather than model prose. A live integration smoke reached the model and verified effective `Mapleluv/deepseek-v4-flash/max`, non-root UID, zero compaction, structured usage, and a clean credential scan; it ended harness-invalid because evidence was written after logs were frozen. The ordering defect is covered by a deterministic regression, and that smoke remains excluded from formal scores.
+`pi_agent.py` pins Node `24.18.0` by archive SHA-256 and Pi `0.84.1` by tarball plus bundled shrinkwrap SHA-256. Runtime logs retain Pi's structured session JSONL so token, cache, cost, context, and step metrics come from provider usage records rather than model prose. Any assistant `stopReason=error`, provider/model/API mismatch, non-`max` thinking, second session identity, or compaction invalidates runtime evidence.
 
-After building the exact guard bundle and materializing the source archive, `run_pilot.py` is a one-shot 29-cell launcher. It has no condition or alternate-manifest CLI, invokes Pier through the RECORD-verified Python distribution, rejects a dirty Ockle tree or pre-existing output, validates every expected task result after each arm, scans artifacts for the exact credential, and writes `summary.json` only after all three arms validate. Formal runs have not yet been executed.
+A live `inner × superjson-error-stack-serialization` protocol smoke exercised `Mapleluv-Main-MSG/deepseek-v4-flash/max` through the real filtered proxy: one session, 36 tool-use responses, 49 tool calls, zero compactions, clean committed delivery, valid runtime/final/security evidence, and no continuation. DeepSWE still returned reward `0` (`69/80` F2P and `116/116` P2P), which is a model behavior result rather than an infrastructure pass. The smoke is excluded from formal scores.
+
+The completed 29-cell r4 run used the previous OpenAI-Responses adapter and produced `0/29` binary rewards. Its artifacts showed that 17 dirty candidates stopped on text-only transition responses, with unequal arm impact. It is therefore retained only as adapter-protocol calibration and excluded from the Ockle effect estimate.
+
+After building the exact guard bundle and materializing the source archive, `run_pilot.py` is a one-shot 29-cell launcher. It has no condition or alternate-manifest CLI, invokes Pier through the RECORD-verified Python distribution, rejects a dirty Ockle tree or pre-existing output, validates every expected task result and generated proxy policy after each arm, scans artifacts for the exact credential, and writes `summary.json` only after all three arms validate. The corrected Anthropic-protocol formal run has not yet executed.
 
 ## Limitations
 

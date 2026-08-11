@@ -14,6 +14,11 @@ from pathlib import Path
 from typing import Any
 
 from pi_agent import (
+    CONTINUATION_STATUS_NAME,
+    MAX_CONTINUATIONS,
+    MODEL_API,
+    MODEL_BASE_URL,
+    MODEL_EGRESS_PORT,
     MODEL_ID,
     MODEL_PROVIDER,
     NODE_SHA256,
@@ -21,7 +26,10 @@ from pi_agent import (
     PI_SHRINKWRAP_SHA256,
     PI_TARBALL_SHA256,
     PI_VERSION,
+    PIER_SQUID_BOOTSTRAP_SHA256,
+    combine_final_status_bytes,
 )
+from pier.environments.agent_setup import squid_bootstrap_command
 from prepare_pilot import (
     EXPECTED_BENCHMARK_COMMIT,
     EXPECTED_PIER_COMMIT,
@@ -29,7 +37,7 @@ from prepare_pilot import (
     validate_pilot_manifest,
 )
 
-MODEL = "Mapleluv/deepseek-v4-flash"
+MODEL = f"{MODEL_PROVIDER}/{MODEL_ID}"
 
 
 def build_pier_command(
@@ -313,6 +321,16 @@ def _verify_execution_contract(manifest: dict[str, Any], guard_bundle: Path) -> 
     execution = manifest["execution"]
     expected = {
         "model": f"{MODEL_PROVIDER}/{MODEL_ID}",
+        "modelApi": MODEL_API,
+        "modelBaseUrl": MODEL_BASE_URL,
+        "maxContinuations": MAX_CONTINUATIONS,
+        "continuationTrigger": "trusted-dirty-worktree",
+        "pierSquidBootstrapSha256": PIER_SQUID_BOOTSTRAP_SHA256,
+        "pierSquidSafePorts": [80, 443, MODEL_EGRESS_PORT],
+        "pierSquidSslPorts": [443],
+        "candidateIndexAuthority": "actual-index-plus-independent-worktree",
+        "statusEvidence": "root-frozen-raw-bytes-sha256",
+        "rejectSplitIndex": True,
         "thinking": "max",
         "repeats": 1,
         "magicContext": False,
@@ -431,6 +449,81 @@ def _run_pier_with_credential_scan(
     return completed, leaks
 
 
+def _read_regular_bytes(path: Path) -> bytes | None:
+    try:
+        if not path.is_file() or path.is_symlink():
+            return None
+        return path.read_bytes()
+    except OSError:
+        return None
+
+
+def _continuation_evidence_valid(value: Any, result_path: Path) -> bool:
+    if not isinstance(value, dict):
+        return False
+    count = value.get("count")
+    status_bytes = value.get("statusBytes")
+    status_sha = value.get("statusSha256")
+    raw_status = _read_regular_bytes(
+        result_path.parent / "agent" / CONTINUATION_STATUS_NAME
+    )
+    if raw_status is None:
+        return False
+    return all(
+        [
+            value.get("schemaVersion") == 1,
+            value.get("maxContinuations") == MAX_CONTINUATIONS,
+            type(count) is int and 0 <= count <= MAX_CONTINUATIONS,
+            value.get("statusChecked") is True,
+            value.get("triggeredByDirtyWorktree") is (count == 1),
+            type(status_bytes) is int and status_bytes == len(raw_status),
+            isinstance(status_sha, str)
+            and status_sha == hashlib.sha256(raw_status).hexdigest(),
+            (count == 0) is (len(raw_status) == 0),
+        ]
+    )
+
+
+def _final_status_evidence_valid(metadata: dict[str, Any], result_path: Path) -> bool:
+    independent = _read_regular_bytes(
+        result_path.parent / "agent" / "git-final-status.txt"
+    )
+    candidate_index = _read_regular_bytes(
+        result_path.parent / "agent" / "git-final-index-status.txt"
+    )
+    if independent is None or candidate_index is None:
+        return False
+    combined = combine_final_status_bytes(independent, candidate_index)
+    independent_clean = independent == b""
+    candidate_index_clean = candidate_index == b""
+    return all(
+        [
+            metadata.get("independentWorktreeClean") is independent_clean,
+            metadata.get("independentWorktreeStatusBytes") == len(independent),
+            metadata.get("independentWorktreeStatusSha256")
+            == hashlib.sha256(independent).hexdigest(),
+            metadata.get("candidateIndexClean") is candidate_index_clean,
+            metadata.get("candidateIndexStatusBytes") == len(candidate_index),
+            metadata.get("candidateIndexStatusSha256")
+            == hashlib.sha256(candidate_index).hexdigest(),
+            metadata.get("worktreeClean")
+            is (independent_clean and candidate_index_clean),
+            metadata.get("worktreeStatusBytes")
+            == len(independent) + len(candidate_index),
+            metadata.get("worktreeStatusSha256")
+            == hashlib.sha256(combined).hexdigest(),
+        ]
+    )
+
+
+def _proxy_policy_valid(result_path: Path) -> bool:
+    policy_path = result_path.parent / "egress-proxy" / "start-squid.sh"
+    try:
+        return policy_path.read_text(encoding="utf-8") == squid_bootstrap_command()
+    except (OSError, UnicodeError):
+        return False
+
+
 def _condition_results(
     *,
     output_root: Path,
@@ -478,12 +571,19 @@ def _condition_results(
         agent_result = result.get("agent_result") or {}
         metadata = agent_result.get("metadata") or {}
         security = metadata.get("security") or {}
+        continuation = metadata.get("continuation")
+        proxy_policy_valid = _proxy_policy_valid(path)
+        final_status_valid = _final_status_evidence_valid(metadata, path)
         runtime_valid = all(
             [
                 metadata.get("runtimeEvidenceValid") is True,
                 metadata.get("finalStateEvidenceValid") is True,
+                _continuation_evidence_valid(continuation, path),
+                proxy_policy_valid,
+                final_status_valid,
                 metadata.get("provider") == MODEL_PROVIDER,
                 metadata.get("model") == MODEL_ID,
+                metadata.get("api") == MODEL_API,
                 metadata.get("thinking") == "max",
                 isinstance(metadata.get("agentUid"), int)
                 and metadata.get("agentUid") > 0,
@@ -559,8 +659,11 @@ def _condition_results(
                 "resolved": resolved,
                 "delivered": delivered,
                 "runtimeValid": runtime_valid,
+                "proxyPolicyValid": proxy_policy_valid,
+                "finalStatusEvidenceValid": final_status_valid,
                 "safeDelivery": safe_delivery,
                 "worktreeClean": worktree_clean,
+                "candidateIndexClean": metadata.get("candidateIndexClean"),
                 "guardVerdict": guard_verdict,
                 "guardCommitVerdict": guard_commit_verdict,
                 "guardWorktreeVerdict": guard_worktree_verdict,
@@ -574,6 +677,9 @@ def _condition_results(
                 "nOutputTokens": agent_result.get("n_output_tokens"),
                 "reasoningTokens": metadata.get("reasoningTokens"),
                 "nAgentSteps": agent_result.get("n_agent_steps"),
+                "continuationCount": (
+                    continuation.get("count") if isinstance(continuation, dict) else None
+                ),
                 "agentDuration": result.get("agent_execution"),
                 "resultPath": path.relative_to(output_root).as_posix(),
             }
@@ -594,6 +700,9 @@ def _summarize(cells: list[dict[str, Any]]) -> dict[str, Any]:
             "inputTokens": sum(int(cell["nInputTokens"] or 0) for cell in selected),
             "outputTokens": sum(int(cell["nOutputTokens"] or 0) for cell in selected),
             "steps": sum(int(cell["nAgentSteps"] or 0) for cell in selected),
+            "continuations": sum(
+                int(cell["continuationCount"] or 0) for cell in selected
+            ),
         }
     return {"schemaVersion": 1, "subjects": len(cells), "byCondition": by_condition}
 

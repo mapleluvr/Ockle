@@ -28,7 +28,12 @@ def _source_entries(repository: Path) -> list[tuple[Path, str]]:
         for path in sorted(source.rglob("*"), key=lambda item: item.as_posix()):
             relative = path.relative_to(source).as_posix()
             target = f"{archive_name}/{relative}"
-            if target == "node_modules/.bin" or target.startswith("node_modules/.bin/"):
+            if (
+                target == "node_modules/.bin"
+                or target.startswith("node_modules/.bin/")
+                or target == "node_modules/.cache"
+                or target.startswith("node_modules/.cache/")
+            ):
                 continue
             if path.is_symlink():
                 if target == "node_modules/@ockle/guard":

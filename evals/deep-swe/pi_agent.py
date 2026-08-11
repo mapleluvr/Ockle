@@ -20,9 +20,16 @@ PI_TARBALL_SHA256 = "a69a18596017e91955fd0fd677be69fab5b6ea01d5b06207bcee34ee152
 PI_SHRINKWRAP_SHA256 = "a724da15dc849d0ab2fe346845f8986b059ab89339a03a365b5910b23217c0c3"
 NODE_VERSION = "24.18.0"
 NODE_SHA256 = "55aa7153f9d88f28d765fcdad5ae6945b5c0f98a36881703817e4c450fa76742"
-MODEL_PROVIDER = "Mapleluv"
+MODEL_PROVIDER = "Mapleluv-Main-MSG"
 MODEL_ID = "deepseek-v4-flash"
+MODEL_API = "anthropic-messages"
+MODEL_BASE_URL = "http://38.148.253.23:8317"
+MODEL_EGRESS_HOST = "38.148.253.23"
+MODEL_EGRESS_PORT = 8317
+PIER_SQUID_BOOTSTRAP_SHA256 = "c955bfa87b87dbc18b91d7e4c89b8a78ac56319a64624c93b15a14f21571d328"
 CONDITIONS = frozenset({"bare", "inner", "full"})
+MAX_CONTINUATIONS = 1
+CONTINUATION_PROMPT = """Continue the same task from the existing work. The trusted host reports that the worktree is still dirty, so the requested commit has not been delivered. Do not restart or redo completed work. Finish the remaining implementation and verification, then commit every intended change before ending the turn."""
 REMOTE_PI_DIR = "/opt/ockle/pi"
 REMOTE_SKILLS_DIR = "/opt/ockle/skills"
 REMOTE_SESSION_DIR = "/logs/agent/sessions"
@@ -35,6 +42,9 @@ GUARD_FINAL_WORKTREE = "/logs/agent/guard-final-worktree.json"
 GUARD_FINAL_WORKTREE_EXIT = "/logs/agent/guard-final-worktree-exit.txt"
 GIT_FINAL_STATUS = "/logs/agent/git-final-status.txt"
 GIT_FINAL_STATUS_EXIT = "/logs/agent/git-final-status-exit.txt"
+GIT_FINAL_INDEX_STATUS = "/logs/agent/git-final-index-status.txt"
+GIT_FINAL_INDEX_STATUS_EXIT = "/logs/agent/git-final-index-status-exit.txt"
+CONTINUATION_STATUS_NAME = "continuation-status.txt"
 SECRET_SCAN_PATH = "/opt/ockle/secret-scan.cjs"
 AGENT_USER = "ockle"
 
@@ -44,15 +54,33 @@ SKILL_NAMES = (
     "receiving-code-review",
 )
 
-SYSTEM_APPEND = """You are running inside a DeepSWE agent container. Work only in the repository at /app. Complete the user's feature request, run relevant tests, and commit every intended change to the current branch; uncommitted changes are not delivered. Do not inspect /logs or evaluator artifacts."""
+SYSTEM_APPEND = """You are running inside a DeepSWE agent container. Work only in the repository at /app. Complete the user's feature request, run relevant tests, and commit every intended change to the current branch; uncommitted changes are not delivered. A text-only response ends execution, so do not end with a plan or transition statement. Emit final text only after the work is delivered. Do not inspect /logs or evaluator artifacts."""
+
+
+def _patch_pier_egress_port_policy() -> None:
+    from pier.environments import agent_setup
+
+    original = agent_setup.squid_bootstrap_command()
+    digest = hashlib.sha256(original.encode("utf-8")).hexdigest()
+    if digest != PIER_SQUID_BOOTSTRAP_SHA256:
+        raise RuntimeError("Pier Squid bootstrap bytes do not match the pinned policy")
+    old_rule = "acl Safe_ports port 80 443"
+    new_rule = f"acl Safe_ports port 80 443 {MODEL_EGRESS_PORT}"
+    if original.count(old_rule) != 1 or str(MODEL_EGRESS_PORT) in original:
+        raise RuntimeError("Pier Squid Safe_ports policy shape is unexpected")
+    patched = original.replace(old_rule, new_rule)
+    agent_setup.squid_bootstrap_command = lambda: patched
+
+
+_patch_pier_egress_port_policy()
 
 
 def build_models_config() -> dict[str, Any]:
     return {
         "providers": {
             MODEL_PROVIDER: {
-                "baseUrl": "https://la.mapleluv.icu/v1",
-                "api": "openai-responses",
+                "baseUrl": MODEL_BASE_URL,
+                "api": MODEL_API,
                 "apiKey": "$MAPLELUV_API_KEY",
                 "models": [
                     {
@@ -77,12 +105,7 @@ def build_models_config() -> dict[str, Any]:
                             "xhigh": "xhigh",
                             "max": "max",
                         },
-                        "compat": {
-                            "supportsDeveloperRole": False,
-                            "supportsReasoningEffort": True,
-                            "supportsStore": False,
-                            "sendSessionIdHeader": True,
-                        },
+                        "compat": {},
                     }
                 ],
             }
@@ -115,7 +138,12 @@ def build_settings() -> dict[str, Any]:
     }
 
 
-def build_pi_arguments(condition: str, instruction: str) -> list[str]:
+def build_pi_arguments(
+    condition: str,
+    instruction: str,
+    *,
+    continue_session: bool = False,
+) -> list[str]:
     if condition not in CONDITIONS:
         raise ValueError(f"unknown condition: {condition}")
     if not instruction:
@@ -129,6 +157,8 @@ def build_pi_arguments(condition: str, instruction: str) -> list[str]:
         "--no-extensions",
         "--no-skills",
     ]
+    if continue_session:
+        args.append("--continue")
     if condition != "bare":
         for name in SKILL_NAMES:
             args.extend(["--skill", f"{REMOTE_SKILLS_DIR}/{name}/SKILL.md"])
@@ -150,7 +180,24 @@ def build_pi_arguments(condition: str, instruction: str) -> list[str]:
     return args
 
 
-def trusted_git_environment(*, final_index: bool = False) -> str:
+def should_continue_after_turn(
+    *,
+    return_code: int,
+    trusted_worktree_status: str,
+    continuation_count: int,
+) -> bool:
+    return (
+        return_code == 0
+        and bool(trusted_worktree_status)
+        and continuation_count < MAX_CONTINUATIONS
+    )
+
+
+def trusted_git_environment(
+    *,
+    final_index: bool = False,
+    index_path: str | None = None,
+) -> str:
     config = {
         "safe.directory": "/app",
         "diff.external": "",
@@ -158,10 +205,19 @@ def trusted_git_environment(*, final_index: bool = False) -> str:
         "core.hooksPath": "/dev/null",
         "core.fsmonitor": "false",
         "core.untrackedCache": "false",
+        "core.sparseCheckout": "false",
+        "core.sparseCheckoutCone": "false",
+        "index.sparse": "false",
         "core.worktree": "/app",
         "core.bare": "false",
     }
-    index_path = "/tmp/ockle-final-index" if final_index else "/app/.git/index"
+    if final_index and index_path is not None:
+        raise ValueError("final_index and index_path are mutually exclusive")
+    resolved_index_path = (
+        index_path
+        if index_path is not None
+        else "/tmp/ockle-final-index" if final_index else "/app/.git/index"
+    )
     parts = [
         "env",
         "-u GIT_DIR",
@@ -175,7 +231,7 @@ def trusted_git_environment(*, final_index: bool = False) -> str:
         "GIT_DIR=/app/.git",
         "GIT_WORK_TREE=/app",
         "GIT_COMMON_DIR=/app/.git",
-        f"GIT_INDEX_FILE={index_path}",
+        f"GIT_INDEX_FILE={resolved_index_path}",
         "GIT_OBJECT_DIRECTORY=/app/.git/objects",
         "GIT_ALTERNATE_OBJECT_DIRECTORIES=",
         "GIT_ATTR_SOURCE=$base",
@@ -190,6 +246,31 @@ def trusted_git_environment(*, final_index: bool = False) -> str:
         parts.append(f"GIT_CONFIG_KEY_{index}={shlex.quote(key)}")
         parts.append(f"GIT_CONFIG_VALUE_{index}={shlex.quote(value)}")
     return " ".join(parts)
+
+
+def build_candidate_index_status_fragment() -> str:
+    trusted = trusted_git_environment(index_path="/app/.git/index")
+    return " ".join(
+        [
+            "set -eu;",
+            "test -f /app/.git/index;",
+            "test ! -L /app/.git/index;",
+            f"shared_index=$({trusted} git rev-parse --shared-index-path);",
+            "test -z \"$shared_index\";",
+            f"{trusted} git diff-index --cached --name-status --no-renames HEAD --",
+        ]
+    )
+
+
+def combine_final_status_bytes(
+    independent_worktree: bytes, candidate_index: bytes
+) -> bytes:
+    return (
+        b"independent-worktree\0"
+        + independent_worktree
+        + b"\0candidate-index\0"
+        + candidate_index
+    )
 
 
 def build_guard_hook() -> str:
@@ -207,6 +288,7 @@ def build_guard_hook() -> str:
 
 def build_guard_final_command() -> str:
     trusted = trusted_git_environment(final_index=True)
+    candidate_index = build_candidate_index_status_fragment()
     return " ".join(
         [
             "set +e;",
@@ -218,6 +300,9 @@ def build_guard_final_command() -> str:
             f"{trusted} node {GUARD_BIN} check --base $base --candidate worktree --no-store >{GUARD_FINAL_WORKTREE};",
             "worktree_code=$?;",
             f"printf '%s\\n' $worktree_code >{GUARD_FINAL_WORKTREE_EXIT};",
+            f"( {candidate_index} ) >{GIT_FINAL_INDEX_STATUS};",
+            "index_status_code=$?;",
+            f"printf '%s\\n' $index_status_code >{GIT_FINAL_INDEX_STATUS_EXIT};",
             f"{trusted} git -c safe.directory=/app -C /app status --porcelain=v1 --untracked-files=all >{GIT_FINAL_STATUS};",
             "status_code=$?;",
             f"printf '%s\\n' $status_code >{GIT_FINAL_STATUS_EXIT};",
@@ -228,14 +313,36 @@ def build_guard_final_command() -> str:
 
 def build_git_status_command() -> str:
     trusted = trusted_git_environment(final_index=True)
+    candidate_index = build_candidate_index_status_fragment()
     return " ".join(
         [
             "set +e;",
             f"base=$(cat {GUARD_BASE_FILE});",
+            f"( {candidate_index} ) >{GIT_FINAL_INDEX_STATUS};",
+            "index_status_code=$?;",
+            f"printf '%s\\n' $index_status_code >{GIT_FINAL_INDEX_STATUS_EXIT};",
             f"{trusted} git -c safe.directory=/app -C /app status --porcelain=v1 --untracked-files=all >{GIT_FINAL_STATUS};",
             "status_code=$?;",
             f"printf '%s\\n' $status_code >{GIT_FINAL_STATUS_EXIT};",
             "exit 0",
+        ]
+    )
+
+
+def build_continuation_status_command() -> str:
+    index_path = "/tmp/ockle-continuation-index"
+    trusted = trusted_git_environment(index_path=index_path)
+    candidate_index = build_candidate_index_status_fragment()
+    return " ".join(
+        [
+            "set -eu;",
+            "cd /app;",
+            f"base=$(cat {GUARD_BASE_FILE});",
+            f"{candidate_index};",
+            f"rm -f {index_path};",
+            f"{trusted} git read-tree --reset HEAD >/dev/null;",
+            f"{trusted} git status --porcelain=v1 --untracked-files=all;",
+            f"rm -f {index_path}",
         ]
     )
 
@@ -251,9 +358,11 @@ def build_post_run_sanitize_command() -> str:
             "pkill -KILL -u \"$uid\" 2>/dev/null || true;",
             "test -d /app/.git;",
             "test ! -L /app/.git;",
+            "test -f /app/.git/index;",
+            "test ! -L /app/.git/index;",
             "if find /app/.git ! \\( -type f -o -type d \\) -print -quit | grep -q .; then exit 1; fi;",
             "rm -rf /tmp/ockle-pi /app/.git/refs/replace;",
-            "rm -f /app/.git/info/grafts /app/.git/objects/info/alternates /app/.git/objects/info/http-alternates /tmp/ockle-final-index;",
+            "rm -f /app/.git/info/grafts /app/.git/objects/info/alternates /app/.git/objects/info/http-alternates /tmp/ockle-final-index /tmp/ockle-continuation-index;",
             "rm -f /app/.git/config /app/.git/config.worktree;",
             "umask 077;",
             "printf '[core]\\nrepositoryformatversion = 0\\nbare = false\\nworktree = /app\\n' > /app/.git/config;",
@@ -393,6 +502,7 @@ def parse_session_evidence(session_path: Path) -> dict[str, int | float | str]:
     model_changes: set[tuple[str, str]] = set()
     thinking_levels: set[str] = set()
     assistant_models: set[tuple[str, str]] = set()
+    assistant_apis: set[str] = set()
     compaction_count = 0
 
     for line in session_path.read_text(encoding="utf-8").splitlines():
@@ -414,10 +524,13 @@ def parse_session_evidence(session_path: Path) -> dict[str, int | float | str]:
         message = row.get("message") if row_type == "message" else None
         if not isinstance(message, dict) or message.get("role") != "assistant":
             continue
+        if message.get("stopReason") == "error":
+            raise ValueError("assistant provider error in session evidence")
         usage = message.get("usage")
         if not isinstance(usage, dict):
             continue
         assistant_models.add((str(message.get("provider")), str(message.get("model"))))
+        assistant_apis.add(str(message.get("api")))
         input_tokens = int(usage.get("input") or 0)
         cache_tokens = int(usage.get("cacheRead") or 0) + int(
             usage.get("cacheWrite") or 0
@@ -440,6 +553,8 @@ def parse_session_evidence(session_path: Path) -> dict[str, int | float | str]:
         raise ValueError("expected exactly one persisted session identity")
     if model_changes != expected_model or assistant_models != expected_model:
         raise ValueError("provider or model evidence does not match the formal contract")
+    if assistant_apis != {MODEL_API}:
+        raise ValueError("assistant API evidence does not match the formal contract")
     if thinking_levels != {"max"}:
         raise ValueError("thinking level evidence is not exactly max")
     if compaction_count != 0:
@@ -456,6 +571,7 @@ def parse_session_evidence(session_path: Path) -> dict[str, int | float | str]:
         "peak_context_tokens": peak_context,
         "n_agent_steps": steps,
         "session_id": next(iter(session_ids)),
+        "api": MODEL_API,
         "thinking_level": "max",
         "compaction_count": compaction_count,
     }
@@ -464,16 +580,37 @@ def parse_session_evidence(session_path: Path) -> dict[str, int | float | str]:
 def parse_final_state_evidence(logs_dir: Path, condition: str) -> dict[str, Any]:
     status_path = logs_dir / Path(GIT_FINAL_STATUS).name
     status_exit_path = logs_dir / Path(GIT_FINAL_STATUS_EXIT).name
-    if not status_path.is_file() or not status_exit_path.is_file():
-        raise ValueError("trusted final Git status evidence is missing")
+    index_status_path = logs_dir / Path(GIT_FINAL_INDEX_STATUS).name
+    index_status_exit_path = logs_dir / Path(GIT_FINAL_INDEX_STATUS_EXIT).name
+    required = (
+        status_path,
+        status_exit_path,
+        index_status_path,
+        index_status_exit_path,
+    )
+    if any(not path.is_file() or path.is_symlink() for path in required):
+        raise ValueError("trusted final Git status evidence is missing or non-regular")
     status_exit = int(status_exit_path.read_text(encoding="utf-8").strip())
-    if status_exit != 0:
+    index_status_exit = int(
+        index_status_exit_path.read_text(encoding="utf-8").strip()
+    )
+    if status_exit != 0 or index_status_exit != 0:
         raise ValueError("trusted final Git status failed")
     status_bytes = status_path.read_bytes()
+    index_status_bytes = index_status_path.read_bytes()
+    combined = combine_final_status_bytes(status_bytes, index_status_bytes)
+    independent_clean = status_bytes == b""
+    candidate_index_clean = index_status_bytes == b""
     evidence: dict[str, Any] = {
-        "worktreeClean": status_bytes == b"",
-        "worktreeStatusSha256": hashlib.sha256(status_bytes).hexdigest(),
-        "worktreeStatusBytes": len(status_bytes),
+        "worktreeClean": independent_clean and candidate_index_clean,
+        "worktreeStatusSha256": hashlib.sha256(combined).hexdigest(),
+        "worktreeStatusBytes": len(status_bytes) + len(index_status_bytes),
+        "independentWorktreeClean": independent_clean,
+        "independentWorktreeStatusSha256": hashlib.sha256(status_bytes).hexdigest(),
+        "independentWorktreeStatusBytes": len(status_bytes),
+        "candidateIndexClean": candidate_index_clean,
+        "candidateIndexStatusSha256": hashlib.sha256(index_status_bytes).hexdigest(),
+        "candidateIndexStatusBytes": len(index_status_bytes),
     }
     if condition != "full":
         return evidence
@@ -526,6 +663,17 @@ class PiOckleAgent(BaseInstalledAgent):
         )
         self.runtime_evidence: dict[str, int | float | str] | None = None
         self.final_state_evidence: dict[str, Any] | None = None
+        self.continuation_count = 0
+        self.continuation_status_bytes: bytes | None = None
+        self.continuation_evidence: dict[str, Any] = {
+            "schemaVersion": 1,
+            "maxContinuations": MAX_CONTINUATIONS,
+            "count": 0,
+            "statusChecked": False,
+            "triggeredByDirtyWorktree": False,
+            "statusBytes": None,
+            "statusSha256": None,
+        }
         self.agent_uid: int | None = None
         super().__init__(*args, **kwargs)
 
@@ -568,7 +716,7 @@ class PiOckleAgent(BaseInstalledAgent):
         )
 
     def network_allowlist(self) -> NetworkAllowlist:
-        return NetworkAllowlist(domains=["la.mapleluv.icu"])
+        return NetworkAllowlist(domains=[MODEL_EGRESS_HOST])
 
     def get_version_command(self) -> str | None:
         return "pi --version"
@@ -686,7 +834,6 @@ class PiOckleAgent(BaseInstalledAgent):
             raise ValueError("MAPLELUV_API_KEY is required")
 
         rendered = self.render_instruction(instruction)
-        args = build_pi_arguments(self.condition, rendered)
         event_path = "/logs/agent/pi-events.jsonl"
         stderr_path = "/logs/agent/pi.stderr.log"
         process_env = environment.agent_process_env(
@@ -699,27 +846,86 @@ class PiOckleAgent(BaseInstalledAgent):
                 "NO_COLOR": "1",
             }
         )
-        command = (
-            "set -o pipefail; "
+        setup_command = (
             "rm -rf /tmp/ockle-pi; install -d -m 0700 /tmp/ockle-pi; "
             f"cp {REMOTE_PI_DIR}/models.json {REMOTE_PI_DIR}/settings.json /tmp/ockle-pi/; "
             "chmod 0600 /tmp/ockle-pi/models.json /tmp/ockle-pi/settings.json; "
             "cd /app; mkdir -p /logs/agent; "
-            f"{shlex.join(args)} 2>{stderr_path} | tee {event_path}"
+            f": >{event_path}; : >{stderr_path}"
         )
         result = None
         launch_error: Exception | None = None
+        continuation_error: Exception | None = None
         post_errors: list[str] = []
         try:
             try:
-                result = await environment.exec(
-                    command=command,
-                    env=process_env,
-                    timeout_sec=5_400,
+                setup = await environment.exec(command=setup_command, env=process_env)
+                if setup.return_code != 0:
+                    raise NonZeroAgentExitCodeError(
+                        f"Pi runtime setup exited with {setup.return_code}"
+                    )
+                result = await self._run_pi_turn(
+                    environment=environment,
+                    process_env=process_env,
+                    args=build_pi_arguments(self.condition, rendered),
+                    event_path=event_path,
+                    stderr_path=stderr_path,
                 )
+                if result.return_code == 0:
+                    status_result = await environment.exec(
+                        command=build_continuation_status_command(), user="root"
+                    )
+                    if status_result.return_code != 0:
+                        raise NonZeroAgentExitCodeError(
+                            "trusted continuation status failed"
+                        )
+                    trusted_status = status_result.stdout or ""
+                    status_bytes = trusted_status.encode("utf-8")
+                    self.continuation_status_bytes = status_bytes
+                    self.continuation_evidence.update(
+                        {
+                            "statusChecked": True,
+                            "statusBytes": len(status_bytes),
+                            "statusSha256": hashlib.sha256(status_bytes).hexdigest(),
+                        }
+                    )
+                    if should_continue_after_turn(
+                        return_code=result.return_code,
+                        trusted_worktree_status=trusted_status,
+                        continuation_count=self.continuation_count,
+                    ):
+                        self.continuation_count += 1
+                        self.continuation_evidence.update(
+                            {
+                                "count": self.continuation_count,
+                                "triggeredByDirtyWorktree": True,
+                            }
+                        )
+                        result = await self._run_pi_turn(
+                            environment=environment,
+                            process_env=process_env,
+                            args=build_pi_arguments(
+                                self.condition,
+                                CONTINUATION_PROMPT,
+                                continue_session=True,
+                            ),
+                            event_path=event_path,
+                            stderr_path=stderr_path,
+                        )
             except Exception as exc:
                 launch_error = exc
         finally:
+            try:
+                if self.continuation_status_bytes is not None:
+                    (self.logs_dir / CONTINUATION_STATUS_NAME).write_bytes(
+                        self.continuation_status_bytes
+                    )
+                (self.logs_dir / "continuation.json").write_text(
+                    json.dumps(self.continuation_evidence, indent=2) + "\n",
+                    encoding="utf-8",
+                )
+            except Exception as exc:
+                continuation_error = exc
             cleanup_task = asyncio.create_task(
                 self._post_run_boundary(environment, process_env)
             )
@@ -729,6 +935,10 @@ class PiOckleAgent(BaseInstalledAgent):
                 post_errors = await cleanup_task
                 raise
 
+        if continuation_error is not None:
+            post_errors.insert(
+                0, f"trusted continuation evidence failed: {continuation_error}"
+            )
         if post_errors:
             raise NonZeroAgentExitCodeError(
                 "trusted post-run boundary failed: " + "; ".join(post_errors)
@@ -742,6 +952,25 @@ class PiOckleAgent(BaseInstalledAgent):
             raise NonZeroAgentExitCodeError(
                 f"Pi exited with {return_code}; see {stderr_path}"
             )
+
+    async def _run_pi_turn(
+        self,
+        *,
+        environment: BaseEnvironment,
+        process_env: dict[str, str],
+        args: list[str],
+        event_path: str,
+        stderr_path: str,
+    ) -> Any:
+        command = (
+            "set -o pipefail; cd /app; "
+            f"{shlex.join(args)} 2>>{stderr_path} | tee -a {event_path}"
+        )
+        return await environment.exec(
+            command=command,
+            env=process_env,
+            timeout_sec=5_400,
+        )
 
     async def _post_run_boundary(
         self, environment: BaseEnvironment, process_env: dict[str, str]
@@ -841,10 +1070,12 @@ class PiOckleAgent(BaseInstalledAgent):
             "runtimeEvidenceValid": evidence is not None,
             "provider": MODEL_PROVIDER,
             "model": MODEL_ID,
+            "api": evidence.get("api") if evidence else None,
             "thinking": evidence.get("thinking_level") if evidence else None,
             "sessionId": evidence.get("session_id") if evidence else None,
             "reasoningTokens": evidence.get("reasoning_tokens") if evidence else None,
             "agentUid": evidence.get("agent_uid") if evidence else self.agent_uid,
+            "continuation": self.continuation_evidence,
         }
         security_path = self.logs_dir / "security.json"
         metadata["security"] = (
@@ -862,6 +1093,12 @@ class PiOckleAgent(BaseInstalledAgent):
                     "worktreeClean": None,
                     "worktreeStatusSha256": None,
                     "worktreeStatusBytes": None,
+                    "independentWorktreeClean": None,
+                    "independentWorktreeStatusSha256": None,
+                    "independentWorktreeStatusBytes": None,
+                    "candidateIndexClean": None,
+                    "candidateIndexStatusSha256": None,
+                    "candidateIndexStatusBytes": None,
                 }
             )
         if self.condition == "full":

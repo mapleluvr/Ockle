@@ -27,7 +27,17 @@
     "selectionMechanismUsesPublicOutcomes": false
   },
   "execution": {
-    "model": "Mapleluv/deepseek-v4-flash",
+    "model": "Mapleluv-Main-MSG/deepseek-v4-flash",
+    "modelApi": "anthropic-messages",
+    "modelBaseUrl": "http://38.148.253.23:8317",
+    "maxContinuations": 1,
+    "continuationTrigger": "trusted-dirty-worktree",
+    "pierSquidBootstrapSha256": "c955bfa87b87dbc18b91d7e4c89b8a78ac56319a64624c93b15a14f21571d328",
+    "pierSquidSafePorts": [80, 443, 8317],
+    "pierSquidSslPorts": [443],
+    "candidateIndexAuthority": "actual-index-plus-independent-worktree",
+    "statusEvidence": "root-frozen-raw-bytes-sha256",
+    "rejectSplitIndex": true,
     "thinking": "max",
     "repeats": 1,
     "magicContext": false,

@@ -1,28 +1,38 @@
+import hashlib
 import json
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from urllib.parse import urljoin
 from unittest import mock
 
 from build_guard_bundle import build_guard_bundle
 from pi_agent import (
+    MODEL_BASE_URL,
     MODEL_ID,
     MODEL_PROVIDER,
+    MAX_CONTINUATIONS,
     NODE_SHA256,
     NODE_VERSION,
     PI_TARBALL_SHA256,
     PI_SHRINKWRAP_SHA256,
     PI_VERSION,
     PiOckleAgent,
+    SYSTEM_APPEND,
+    CONTINUATION_PROMPT,
     build_models_config,
+    build_continuation_status_command,
     build_guard_final_command,
     build_guard_hook,
     build_pi_arguments,
     build_post_run_sanitize_command,
     build_secret_scan_script,
     build_settings,
+    combine_final_status_bytes,
+    parse_final_state_evidence,
     parse_session_evidence,
+    should_continue_after_turn,
 )
 from prepare_pilot import (
     harden_task_config,
@@ -45,6 +55,23 @@ class PiAgentUnitTests(unittest.TestCase):
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         summary = validate_pilot_manifest(manifest)
         self.assertEqual(summary, {"tasks": 12, "subjects": 29, "guardTasks": 5})
+        execution = manifest["execution"]
+        self.assertEqual(execution["maxContinuations"], 1)
+        self.assertEqual(execution["continuationTrigger"], "trusted-dirty-worktree")
+        self.assertEqual(execution["pierSquidSafePorts"], [80, 443, 8317])
+        self.assertEqual(execution["pierSquidSslPorts"], [443])
+        self.assertEqual(
+            execution["candidateIndexAuthority"],
+            "actual-index-plus-independent-worktree",
+        )
+        self.assertEqual(
+            execution["statusEvidence"], "root-frozen-raw-bytes-sha256"
+        )
+        self.assertTrue(execution["rejectSplitIndex"])
+        self.assertEqual(
+            execution["pierSquidBootstrapSha256"],
+            "c955bfa87b87dbc18b91d7e4c89b8a78ac56319a64624c93b15a14f21571d328",
+        )
 
     def test_image_reference_is_replaced_exactly_once_with_digest(self):
         source = '[environment]\ndocker_image = "registry.example/task:v1"\n'
@@ -240,7 +267,12 @@ docker_image = \"example/image:v1\"
         model = provider["models"][0]
 
         self.assertEqual(provider["apiKey"], "$MAPLELUV_API_KEY")
-        self.assertEqual(provider["baseUrl"], "https://la.mapleluv.icu/v1")
+        self.assertEqual(provider["baseUrl"], "http://38.148.253.23:8317")
+        self.assertEqual(
+            urljoin(provider["baseUrl"] + "/", "v1/messages"),
+            "http://38.148.253.23:8317/v1/messages",
+        )
+        self.assertEqual(provider["api"], "anthropic-messages")
         self.assertEqual(model["id"], MODEL_ID)
         self.assertEqual(model["contextWindow"], 1_048_000)
         self.assertEqual(model["maxTokens"], 384_000)
@@ -270,6 +302,7 @@ docker_image = \"example/image:v1\"
             self.assertIn("--no-themes", args)
             self.assertIn("--model", args)
             self.assertIn(f"{MODEL_PROVIDER}/{MODEL_ID}", args)
+            self.assertIn("Mapleluv-Main-MSG/deepseek-v4-flash", args)
             self.assertIn("--thinking", args)
             self.assertIn("max", args)
             self.assertNotIn("bare", " ".join(args).lower())
@@ -279,6 +312,73 @@ docker_image = \"example/image:v1\"
         self.assertEqual(bare.count("--skill"), 0)
         self.assertEqual(inner.count("--skill"), 3)
         self.assertEqual(full.count("--skill"), 3)
+
+    def test_dirty_worktree_gets_one_same_session_continuation(self):
+        initial = build_pi_arguments("inner", "Implement the task")
+        resumed = build_pi_arguments(
+            "inner", CONTINUATION_PROMPT, continue_session=True
+        )
+
+        self.assertNotIn("--continue", initial)
+        self.assertIn("--continue", resumed)
+        self.assertIn("--session-dir", resumed)
+        self.assertEqual(resumed[-1], CONTINUATION_PROMPT)
+        self.assertEqual(MAX_CONTINUATIONS, 1)
+        self.assertTrue(
+            should_continue_after_turn(
+                return_code=0,
+                trusted_worktree_status=" M src/example.ts\n",
+                continuation_count=0,
+            )
+        )
+        self.assertFalse(
+            should_continue_after_turn(
+                return_code=0,
+                trusted_worktree_status="",
+                continuation_count=0,
+            )
+        )
+        self.assertFalse(
+            should_continue_after_turn(
+                return_code=1,
+                trusted_worktree_status=" M src/example.ts\n",
+                continuation_count=0,
+            )
+        )
+        self.assertFalse(
+            should_continue_after_turn(
+                return_code=0,
+                trusted_worktree_status=" M src/example.ts\n",
+                continuation_count=1,
+            )
+        )
+        self.assertIn("text-only response ends", SYSTEM_APPEND)
+
+    def test_continuation_status_uses_trusted_git_inputs(self):
+        command = build_continuation_status_command()
+        self.assertIn("GIT_DIR=/app/.git", command)
+        self.assertIn("GIT_WORK_TREE=/app", command)
+        self.assertIn("GIT_INDEX_FILE=/tmp/ockle-continuation-index", command)
+        self.assertIn("GIT_INDEX_FILE=/app/.git/index", command)
+        self.assertIn("test -f /app/.git/index", command)
+        self.assertIn("test ! -L /app/.git/index", command)
+        self.assertIn("git rev-parse --shared-index-path", command)
+        self.assertIn("git diff-index --cached", command)
+        self.assertIn("GIT_NO_REPLACE_OBJECTS=1", command)
+        self.assertIn("git read-tree --reset HEAD", command)
+        self.assertIn("status --porcelain=v1 --untracked-files=all", command)
+        self.assertNotIn("/logs", command)
+
+    def test_continuation_arguments_are_condition_blind(self):
+        for condition in ("bare", "inner", "full"):
+            args = build_pi_arguments(
+                condition, CONTINUATION_PROMPT, continue_session=True
+            )
+            self.assertEqual(args.count("--continue"), 1)
+            rendered = " ".join(args).lower()
+            self.assertNotIn("bare", rendered)
+            self.assertNotIn("inner", rendered)
+            self.assertNotIn("full", rendered)
 
     def test_unknown_condition_fails_before_launch(self):
         with self.assertRaisesRegex(ValueError, "unknown condition"):
@@ -334,6 +434,20 @@ docker_image = \"example/image:v1\"
                 trial = root / "full" / task["id"]
                 (trial / "artifacts").mkdir(parents=True)
                 (trial / "artifacts" / "model.patch").write_text("patch")
+                from pier.environments.agent_setup import squid_bootstrap_command
+
+                (trial / "egress-proxy").mkdir()
+                (trial / "egress-proxy" / "start-squid.sh").write_text(
+                    squid_bootstrap_command(), encoding="utf-8"
+                )
+                (trial / "agent").mkdir()
+                (trial / "agent" / "continuation-status.txt").write_bytes(b"")
+                (trial / "agent" / "git-final-status.txt").write_bytes(b"")
+                (trial / "agent" / "git-final-index-status.txt").write_bytes(b"")
+                empty_sha = hashlib.sha256(b"").hexdigest()
+                combined_status_sha = hashlib.sha256(
+                    combine_final_status_bytes(b"", b"")
+                ).hexdigest()
                 guard = {
                     candidate: {
                         "exitCode": 0,
@@ -366,11 +480,28 @@ docker_image = \"example/image:v1\"
                             "finalStateEvidenceValid": True,
                             "provider": MODEL_PROVIDER,
                             "model": MODEL_ID,
+                            "api": "anthropic-messages",
                             "thinking": "max",
                             "agentUid": 1000,
+                            "continuation": {
+                                "schemaVersion": 1,
+                                "maxContinuations": 1,
+                                "count": 0,
+                                "statusChecked": True,
+                                "triggeredByDirtyWorktree": False,
+                                "statusBytes": 0,
+                                "statusSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                            },
                             "security": {"scanError": False, "credentialLeak": False},
                             "worktreeClean": True,
-                            "worktreeStatusSha256": "a" * 64,
+                            "worktreeStatusSha256": combined_status_sha,
+                            "worktreeStatusBytes": 0,
+                            "independentWorktreeClean": True,
+                            "independentWorktreeStatusSha256": empty_sha,
+                            "independentWorktreeStatusBytes": 0,
+                            "candidateIndexClean": True,
+                            "candidateIndexStatusSha256": empty_sha,
+                            "candidateIndexStatusBytes": 0,
                             "guardBundleSha256": manifest["execution"]["guardBundleSha256"],
                             "guard": guard,
                         },
@@ -390,9 +521,64 @@ docker_image = \"example/image:v1\"
                 host_credential_leaks=[],
             )
             self.assertTrue(all(cell["complete"] for cell in cells))
+            self.assertTrue(all(cell["proxyPolicyValid"] for cell in cells))
+            self.assertTrue(all(cell["continuationCount"] == 0 for cell in cells))
 
             target_path = root / "full" / selected[0]["id"] / "result.json"
+            continuation_status_path = target_path.parent / "agent" / "continuation-status.txt"
+            continuation_status_path.write_bytes(b"M  src/example.ts\n")
+            cells = _condition_results(
+                output_root=root,
+                condition="full",
+                manifest=manifest,
+                host_credential_leaks=[],
+            )
+            invalid_status_bytes = next(
+                cell for cell in cells if cell["taskId"] == selected[0]["id"]
+            )
+            self.assertFalse(invalid_status_bytes["runtimeValid"])
+            continuation_status_path.write_bytes(b"")
+
+            proxy_path = target_path.parent / "egress-proxy" / "start-squid.sh"
+            valid_proxy = proxy_path.read_text(encoding="utf-8")
+            proxy_path.write_text(
+                valid_proxy.replace("acl Safe_ports port 80 443 8317", "acl Safe_ports port 80 443"),
+                encoding="utf-8",
+            )
+            cells = _condition_results(
+                output_root=root,
+                condition="full",
+                manifest=manifest,
+                host_credential_leaks=[],
+            )
+            invalid_proxy = next(
+                cell for cell in cells if cell["taskId"] == selected[0]["id"]
+            )
+            self.assertFalse(invalid_proxy["proxyPolicyValid"])
+            self.assertFalse(invalid_proxy["runtimeValid"])
+            proxy_path.write_text(valid_proxy, encoding="utf-8")
+
             target = json.loads(target_path.read_text(encoding="utf-8"))
+            valid_continuation = target["agent_result"]["metadata"]["continuation"]
+            target["agent_result"]["metadata"]["continuation"] = {
+                **valid_continuation,
+                "count": 1,
+                "triggeredByDirtyWorktree": False,
+            }
+            target_path.write_text(json.dumps(target), encoding="utf-8")
+            cells = _condition_results(
+                output_root=root,
+                condition="full",
+                manifest=manifest,
+                host_credential_leaks=[],
+            )
+            invalid_continuation = next(
+                cell for cell in cells if cell["taskId"] == selected[0]["id"]
+            )
+            self.assertFalse(invalid_continuation["runtimeValid"])
+            self.assertFalse(invalid_continuation["complete"])
+
+            target["agent_result"]["metadata"]["continuation"] = valid_continuation
             target["agent_result"]["metadata"]["guard"]["worktree"] = {
                 "exitCode": 1,
                 "result": {
@@ -447,13 +633,43 @@ docker_image = \"example/image:v1\"
         self.assertIn("useradd", commands)
         self.assertIn("ockle", commands)
         self.assertNotIn(f"npm install -g --ignore-scripts @earendil-works/pi-coding-agent@{PI_VERSION}", commands)
-        self.assertEqual(agent.network_allowlist().domains, ["la.mapleluv.icu"])
+        self.assertEqual(agent.network_allowlist().domains, ["38.148.253.23"])
+        from pier.environments.agent_setup import squid_bootstrap_command
+
+        proxy_script = squid_bootstrap_command()
+        self.assertIn("acl Safe_ports port 80 443 8317", proxy_script)
+        self.assertNotIn("acl Safe_ports port 1-65535", proxy_script)
+        self.assertEqual(proxy_script.count("8317"), 1)
+        self.assertEqual(MODEL_BASE_URL, "http://38.148.253.23:8317")
+
+    def test_final_state_combines_independent_worktree_and_candidate_index(self):
+        with tempfile.TemporaryDirectory() as directory:
+            logs = Path(directory)
+            (logs / "git-final-status.txt").write_bytes(b"")
+            (logs / "git-final-status-exit.txt").write_text("0\n", encoding="utf-8")
+            (logs / "git-final-index-status.txt").write_bytes(b"M\tsrc/example.ts\n")
+            (logs / "git-final-index-status-exit.txt").write_text("0\n", encoding="utf-8")
+
+            evidence = parse_final_state_evidence(logs, "bare")
+
+            self.assertFalse(evidence["worktreeClean"])
+            self.assertTrue(evidence["independentWorktreeClean"])
+            self.assertFalse(evidence["candidateIndexClean"])
+            self.assertEqual(evidence["candidateIndexStatusBytes"], 17)
+
+            (logs / "git-final-index-status-exit.txt").write_text(
+                "128\n", encoding="utf-8"
+            )
+            with self.assertRaisesRegex(ValueError, "trusted final Git status failed"):
+                parse_final_state_evidence(logs, "bare")
 
     def test_post_run_boundary_sanitizes_git_and_scans_exact_delivery_bytes(self):
         sanitize = build_post_run_sanitize_command()
         scanner = build_secret_scan_script()
         self.assertIn("pkill", sanitize)
         self.assertIn("rm -rf /tmp/ockle-pi", sanitize)
+        self.assertIn("test -f /app/.git/index", sanitize)
+        self.assertIn("test ! -L /app/.git/index", sanitize)
         self.assertIn("refs/replace", sanitize)
         self.assertIn("info/grafts", sanitize)
         self.assertIn("GIT_NO_REPLACE_OBJECTS", scanner)
@@ -491,6 +707,7 @@ docker_image = \"example/image:v1\"
                         "role": "assistant",
                         "provider": MODEL_PROVIDER,
                         "model": MODEL_ID,
+                        "api": "anthropic-messages",
                         "usage": {
                             "input": 100,
                             "output": 20,
@@ -508,6 +725,7 @@ docker_image = \"example/image:v1\"
                         "role": "assistant",
                         "provider": MODEL_PROVIDER,
                         "model": MODEL_ID,
+                        "api": "anthropic-messages",
                         "usage": {
                             "input": 200,
                             "output": 50,
@@ -531,12 +749,20 @@ docker_image = \"example/image:v1\"
             self.assertEqual(evidence["peak_context_tokens"], 270)
             self.assertEqual(evidence["n_agent_steps"], 2)
             self.assertEqual(evidence["session_id"], "session-1")
+            self.assertEqual(evidence["api"], "anthropic-messages")
             self.assertEqual(evidence["thinking_level"], "max")
 
             rows[2]["thinkingLevel"] = "high"
             session.write_text("\n".join(json.dumps(row) for row in rows), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "thinking level"):
                 parse_session_evidence(session)
+
+            rows[2]["thinkingLevel"] = "max"
+            rows[3]["message"]["stopReason"] = "error"
+            session.write_text("\n".join(json.dumps(row) for row in rows), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "assistant provider error"):
+                parse_session_evidence(session)
+
             session.write_text("not-json\n", encoding="utf-8")
             with self.assertRaises(json.JSONDecodeError):
                 parse_session_evidence(session)
