@@ -397,11 +397,11 @@ def _pier_content_hash(path: Path) -> str:
 def _expected_retry_config(*, include_none: bool) -> dict[str, Any]:
     retry = {
         "exclude_exceptions": [
-            "VerifierTimeoutError",
             "AgentTimeoutError",
-            "VerifierOutputParseError",
             "RewardFileEmptyError",
             "RewardFileNotFoundError",
+            "VerifierOutputParseError",
+            "VerifierTimeoutError",
         ],
         "include_exceptions": None,
         "max_retries": 0,
@@ -410,6 +410,31 @@ def _expected_retry_config(*, include_none: bool) -> dict[str, Any]:
         "wait_multiplier": 1.0,
     }
     return retry if include_none else {key: value for key, value in retry.items() if value is not None}
+
+
+def _retry_config_matches(actual: Any, expected: dict[str, Any]) -> bool:
+    # Pier models these exception fields as sets, so JSON list order varies by process.
+    if not isinstance(actual, dict) or set(actual) != set(expected):
+        return False
+    for key, expected_value in expected.items():
+        actual_value = actual.get(key)
+        if key not in {"include_exceptions", "exclude_exceptions"}:
+            if actual_value != expected_value:
+                return False
+            continue
+        if expected_value is None:
+            if actual_value is not None:
+                return False
+            continue
+        if (
+            not isinstance(expected_value, list)
+            or not isinstance(actual_value, list)
+            or any(not isinstance(value, str) for value in actual_value)
+            or len(actual_value) != len(set(actual_value))
+            or set(actual_value) != set(expected_value)
+        ):
+            return False
+    return True
 
 
 def _expected_environment_config(*, include_none: bool) -> dict[str, Any]:
@@ -526,7 +551,16 @@ def _validate_condition_job_authority(
         "verifier_timeout_multiplier": None,
     }
     config = load_json(config_path)
-    if config != expected_config:
+    config_without_retry = {
+        key: value for key, value in config.items() if key != "retry"
+    }
+    expected_without_retry = {
+        key: value for key, value in expected_config.items() if key != "retry"
+    }
+    if (
+        config_without_retry != expected_without_retry
+        or not _retry_config_matches(config.get("retry"), expected_config["retry"])
+    ):
         raise RuntimeError(f"Pier job config drift for {condition}")
 
     lock = load_json(lock_path)
@@ -546,7 +580,9 @@ def _validate_condition_job_authority(
             lock.get("pier") != {"version": "0.3.0"},
             lock.get("invocation") != expected_invocation,
             lock.get("n_concurrent_trials") != concurrency,
-            lock.get("retry") != _expected_retry_config(include_none=False),
+            not _retry_config_matches(
+                lock.get("retry"), _expected_retry_config(include_none=False)
+            ),
         ]
     ):
         raise RuntimeError(f"Pier job lock drift for {condition}")

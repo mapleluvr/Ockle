@@ -122,6 +122,19 @@ class DeepSWEReplicationTests(unittest.TestCase):
                     list(range(1, 11)),
                 )
 
+    def test_pier_retry_set_serialization_is_order_insensitive_but_member_exact(self):
+        module = load_replication_module()
+        expected = module._expected_retry_config(include_none=False)
+        reordered = json.loads(json.dumps(expected))
+        reordered["exclude_exceptions"].reverse()
+        self.assertTrue(module._retry_config_matches(reordered, expected))
+        missing = json.loads(json.dumps(reordered))
+        missing["exclude_exceptions"].pop()
+        self.assertFalse(module._retry_config_matches(missing, expected))
+        duplicate = json.loads(json.dumps(reordered))
+        duplicate["exclude_exceptions"].append(duplicate["exclude_exceptions"][0])
+        self.assertFalse(module._retry_config_matches(duplicate, expected))
+
     def test_commands_use_native_attempts_fixed_partition_and_no_retries(self):
         module = load_replication_module()
         replication = json.loads(REPLICATION_MANIFEST.read_text(encoding="utf-8"))

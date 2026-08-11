@@ -723,6 +723,52 @@ class DeepSWEReplicationArtifactTests(unittest.TestCase):
                     expected_command=expected_command,
                 )
 
+    def test_job_authority_canonicalizes_only_set_valued_retry_order(self):
+        module = load_replication_module()
+        task_ids = [
+            "sql-formatter-bigquery-pipe-formatting",
+            "tengo-callable-instance-isolation",
+        ]
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            prepared_tasks_root, expected_command = _write_job_authority(
+                module, root, condition="bare", task_ids=task_ids, concurrency=3
+            )
+            paths = [root / "bare" / name for name in ("config.json", "lock.json")]
+            for path in paths:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+                payload["retry"]["exclude_exceptions"].reverse()
+                path.write_text(
+                    json.dumps(payload, indent=2) + "\n",
+                    encoding="utf-8",
+                    newline="\n",
+                )
+            module._validate_condition_job_authority(
+                condition_root=root / "bare",
+                condition="bare",
+                replication=REPLICATION_MANIFEST,
+                expected_agent_import_path="pi_agent:PiOckleAgent",
+                expected_tasks_root=prepared_tasks_root,
+                expected_command=expected_command,
+            )
+            for path in paths:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+                payload["retry"]["exclude_exceptions"].pop()
+                path.write_text(
+                    json.dumps(payload, indent=2) + "\n",
+                    encoding="utf-8",
+                    newline="\n",
+                )
+            with self.assertRaisesRegex(RuntimeError, "drift"):
+                module._validate_condition_job_authority(
+                    condition_root=root / "bare",
+                    condition="bare",
+                    replication=REPLICATION_MANIFEST,
+                    expected_agent_import_path="pi_agent:PiOckleAgent",
+                    expected_tasks_root=prepared_tasks_root,
+                    expected_command=expected_command,
+                )
+
     def test_job_authority_rejects_every_replay_affecting_drift(self):
         module = load_replication_module()
         task_ids = [
