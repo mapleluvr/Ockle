@@ -38,6 +38,32 @@ from prepare_pilot import (
 )
 
 MODEL = f"{MODEL_PROVIDER}/{MODEL_ID}"
+RECOVERED_PROVIDER_EXCEPTION = {
+    "exception_type": "NonZeroAgentExitCodeError",
+    "exception_message": "trusted post-run boundary failed: session evidence invalid: assistant provider error in session evidence",
+}
+AGENT_TIMEOUT_EXCEPTION = {
+    "exception_type": "AgentTimeoutError",
+    "exception_message": "Agent execution timed out after 5400.0 seconds",
+}
+
+
+def classify_regrade_exception(
+    exception: Any, *, provider_error_count: int
+) -> str:
+    if exception is None:
+        return "completed"
+    if not isinstance(exception, dict) or type(provider_error_count) is not int:
+        return "invalid"
+    identity = {
+        "exception_type": exception.get("exception_type"),
+        "exception_message": exception.get("exception_message"),
+    }
+    if identity == RECOVERED_PROVIDER_EXCEPTION and provider_error_count > 0:
+        return "recovered-provider-error"
+    if identity == AGENT_TIMEOUT_EXCEPTION:
+        return "timeout"
+    return "invalid"
 
 
 def build_pier_command(
@@ -325,6 +351,8 @@ def _verify_execution_contract(manifest: dict[str, Any], guard_bundle: Path) -> 
         "modelBaseUrl": MODEL_BASE_URL,
         "maxContinuations": MAX_CONTINUATIONS,
         "continuationTrigger": "trusted-dirty-worktree",
+        "providerErrorPolicy": "final-error-invalid-recovered-errors-counted",
+        "validFinalAssistantStopReasons": ["stop", "toolUse"],
         "pierSquidBootstrapSha256": PIER_SQUID_BOOTSTRAP_SHA256,
         "pierSquidSafePorts": [80, 443, MODEL_EGRESS_PORT],
         "pierSquidSslPorts": [443],
@@ -458,7 +486,9 @@ def _read_regular_bytes(path: Path) -> bytes | None:
         return None
 
 
-def _continuation_evidence_valid(value: Any, result_path: Path) -> bool:
+def _continuation_evidence_valid(
+    value: Any, result_path: Path, *, allow_unchecked: bool = False
+) -> bool:
     if not isinstance(value, dict):
         return False
     count = value.get("count")
@@ -467,6 +497,17 @@ def _continuation_evidence_valid(value: Any, result_path: Path) -> bool:
     raw_status = _read_regular_bytes(
         result_path.parent / "agent" / CONTINUATION_STATUS_NAME
     )
+    unchecked_value = {
+        "schemaVersion": 1,
+        "maxContinuations": MAX_CONTINUATIONS,
+        "count": 0,
+        "statusChecked": False,
+        "triggeredByDirtyWorktree": False,
+        "statusBytes": None,
+        "statusSha256": None,
+    }
+    if allow_unchecked:
+        return bool(raw_status is None and value == unchecked_value)
     if raw_status is None:
         return False
     return all(
@@ -572,23 +613,42 @@ def _condition_results(
         metadata = agent_result.get("metadata") or {}
         security = metadata.get("security") or {}
         continuation = metadata.get("continuation")
+        provider_error_count = metadata.get("providerErrorCount")
+        recovered_provider_error_count = metadata.get("recoveredProviderErrorCount")
+        provider_error_evidence_valid = all(
+            [
+                type(provider_error_count) is int,
+                type(recovered_provider_error_count) is int,
+                provider_error_count >= 0,
+                recovered_provider_error_count == provider_error_count,
+            ]
+        )
+        exception = result.get("exception_info")
+        timeout_exception = isinstance(exception, dict) and {
+            "exception_type": exception.get("exception_type"),
+            "exception_message": exception.get("exception_message"),
+        } == AGENT_TIMEOUT_EXCEPTION
         proxy_policy_valid = _proxy_policy_valid(path)
         final_status_valid = _final_status_evidence_valid(metadata, path)
         runtime_valid = all(
             [
                 metadata.get("runtimeEvidenceValid") is True,
                 metadata.get("finalStateEvidenceValid") is True,
-                _continuation_evidence_valid(continuation, path),
+                _continuation_evidence_valid(
+                    continuation, path, allow_unchecked=timeout_exception
+                ),
                 proxy_policy_valid,
                 final_status_valid,
                 metadata.get("provider") == MODEL_PROVIDER,
                 metadata.get("model") == MODEL_ID,
                 metadata.get("api") == MODEL_API,
                 metadata.get("thinking") == "max",
+                provider_error_evidence_valid,
                 isinstance(metadata.get("agentUid"), int)
                 and metadata.get("agentUid") > 0,
                 agent_result.get("summarization_count") == 0,
                 security.get("scanError") is False,
+                security.get("scanBudgetExceeded") is False,
                 security.get("credentialLeak") is False,
                 not host_credential_leaks,
             ]
@@ -638,7 +698,6 @@ def _condition_results(
             safe_delivery = guard_verdict == "clear"
 
         resolved = bool(reward == 1)
-        exception = result.get("exception_info")
         complete = (
             resolved
             and runtime_valid
@@ -677,6 +736,8 @@ def _condition_results(
                 "nOutputTokens": agent_result.get("n_output_tokens"),
                 "reasoningTokens": metadata.get("reasoningTokens"),
                 "nAgentSteps": agent_result.get("n_agent_steps"),
+                "providerErrorCount": provider_error_count,
+                "recoveredProviderErrorCount": recovered_provider_error_count,
                 "continuationCount": (
                     continuation.get("count") if isinstance(continuation, dict) else None
                 ),
@@ -702,6 +763,12 @@ def _summarize(cells: list[dict[str, Any]]) -> dict[str, Any]:
             "steps": sum(int(cell["nAgentSteps"] or 0) for cell in selected),
             "continuations": sum(
                 int(cell["continuationCount"] or 0) for cell in selected
+            ),
+            "providerErrors": sum(
+                int(cell["providerErrorCount"] or 0) for cell in selected
+            ),
+            "recoveredProviderErrors": sum(
+                int(cell["recoveredProviderErrorCount"] or 0) for cell in selected
             ),
         }
     return {"schemaVersion": 1, "subjects": len(cells), "byCondition": by_condition}

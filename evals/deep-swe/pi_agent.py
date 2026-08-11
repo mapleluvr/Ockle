@@ -504,6 +504,8 @@ def parse_session_evidence(session_path: Path) -> dict[str, int | float | str]:
     assistant_models: set[tuple[str, str]] = set()
     assistant_apis: set[str] = set()
     compaction_count = 0
+    provider_error_count = 0
+    last_assistant_stop_reason: str | None = None
 
     for line in session_path.read_text(encoding="utf-8").splitlines():
         if not line.strip():
@@ -524,13 +526,24 @@ def parse_session_evidence(session_path: Path) -> dict[str, int | float | str]:
         message = row.get("message") if row_type == "message" else None
         if not isinstance(message, dict) or message.get("role") != "assistant":
             continue
-        if message.get("stopReason") == "error":
-            raise ValueError("assistant provider error in session evidence")
-        usage = message.get("usage")
-        if not isinstance(usage, dict):
-            continue
+        stop_reason = message.get("stopReason")
         assistant_models.add((str(message.get("provider")), str(message.get("model"))))
         assistant_apis.add(str(message.get("api")))
+        if (str(message.get("provider")), str(message.get("model"))) != (
+            MODEL_PROVIDER,
+            MODEL_ID,
+        ) or str(message.get("api")) != MODEL_API:
+            raise ValueError("invalid assistant evidence: provider, model, or API")
+        if stop_reason == "error":
+            provider_error_count += 1
+            last_assistant_stop_reason = stop_reason
+            continue
+        if stop_reason not in {"stop", "toolUse"}:
+            raise ValueError("invalid assistant evidence: stop reason")
+        usage = message.get("usage")
+        if not isinstance(usage, dict):
+            raise ValueError("invalid assistant evidence: usage is missing")
+        last_assistant_stop_reason = stop_reason
         input_tokens = int(usage.get("input") or 0)
         cache_tokens = int(usage.get("cacheRead") or 0) + int(
             usage.get("cacheWrite") or 0
@@ -559,6 +572,10 @@ def parse_session_evidence(session_path: Path) -> dict[str, int | float | str]:
         raise ValueError("thinking level evidence is not exactly max")
     if compaction_count != 0:
         raise ValueError("Pi native compaction occurred")
+    if last_assistant_stop_reason == "error":
+        raise ValueError("unrecovered assistant provider error in session evidence")
+    if last_assistant_stop_reason not in {"stop", "toolUse"}:
+        raise ValueError("invalid final assistant stop reason in session evidence")
     if steps == 0:
         raise ValueError("session contains no assistant usage evidence")
 
@@ -574,6 +591,8 @@ def parse_session_evidence(session_path: Path) -> dict[str, int | float | str]:
         "api": MODEL_API,
         "thinking_level": "max",
         "compaction_count": compaction_count,
+        "provider_error_count": provider_error_count,
+        "recovered_provider_error_count": provider_error_count,
     }
 
 
@@ -1072,6 +1091,12 @@ class PiOckleAgent(BaseInstalledAgent):
             "model": MODEL_ID,
             "api": evidence.get("api") if evidence else None,
             "thinking": evidence.get("thinking_level") if evidence else None,
+            "providerErrorCount": (
+                evidence.get("provider_error_count") if evidence else None
+            ),
+            "recoveredProviderErrorCount": (
+                evidence.get("recovered_provider_error_count") if evidence else None
+            ),
             "sessionId": evidence.get("session_id") if evidence else None,
             "reasoningTokens": evidence.get("reasoning_tokens") if evidence else None,
             "agentUid": evidence.get("agent_uid") if evidence else self.agent_uid,

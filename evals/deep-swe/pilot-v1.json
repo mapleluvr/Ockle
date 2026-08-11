@@ -32,6 +32,8 @@
     "modelBaseUrl": "http://38.148.253.23:8317",
     "maxContinuations": 1,
     "continuationTrigger": "trusted-dirty-worktree",
+    "providerErrorPolicy": "final-error-invalid-recovered-errors-counted",
+    "validFinalAssistantStopReasons": ["stop", "toolUse"],
     "pierSquidBootstrapSha256": "c955bfa87b87dbc18b91d7e4c89b8a78ac56319a64624c93b15a14f21571d328",
     "pierSquidSafePorts": [80, 443, 8317],
     "pierSquidSslPorts": [443],

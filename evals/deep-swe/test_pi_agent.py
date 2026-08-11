@@ -7,6 +7,8 @@ from pathlib import Path
 from urllib.parse import urljoin
 from unittest import mock
 
+import run_pilot
+
 from build_guard_bundle import build_guard_bundle
 from pi_agent import (
     MODEL_BASE_URL,
@@ -39,6 +41,13 @@ from prepare_pilot import (
     pin_image_reference,
     validate_pilot_manifest,
 )
+from regrade_formal_r5 import (
+    SOURCE_CELLS_SHA256,
+    SOURCE_CHECKPOINT,
+    SOURCE_INVENTORY_SHA256,
+    SOURCE_MANIFEST_SHA256,
+    build_source_inventory,
+)
 from run_pilot import (
     _condition_results,
     _redact_secret_tree,
@@ -50,6 +59,62 @@ from run_pilot import (
 
 
 class PiAgentUnitTests(unittest.TestCase):
+    def test_r5_regrade_inventory_and_authority_are_byte_bound(self):
+        self.assertEqual(
+            SOURCE_CELLS_SHA256,
+            "3708e0bdd2517b3b65fed8f14d1aa0b541066ac0734877eae2dead251cfbfaec",
+        )
+        self.assertEqual(
+            SOURCE_CHECKPOINT,
+            "b5d7db4be95c51f44ba5cbc70c7f73cd847ebffd",
+        )
+        self.assertEqual(
+            SOURCE_MANIFEST_SHA256,
+            "5037c2b75c8cd313483eed4ef74164c2d4b1bf9b42dcce23b2cd772d382c38a1",
+        )
+        self.assertEqual(
+            SOURCE_INVENTORY_SHA256,
+            "a9d233470b7a76d034017caa99e369d6c8826023f607eb6c1cbebf0a428040c2",
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / "z.txt").write_bytes(b"z")
+            (root / "nested").mkdir()
+            (root / "nested" / "a.txt").write_bytes(b"a")
+            first = build_source_inventory(root)
+            records = [json.loads(line) for line in first.splitlines()]
+            self.assertEqual(
+                [record["path"] for record in records], ["nested/a.txt", "z.txt"]
+            )
+            (root / "nested" / "a.txt").write_bytes(b"changed")
+            self.assertNotEqual(build_source_inventory(root), first)
+
+    def test_regrade_exception_policy_is_exact_and_arm_blind(self):
+        self.assertTrue(hasattr(run_pilot, "classify_regrade_exception"))
+        classify = getattr(run_pilot, "classify_regrade_exception")
+        recovered = {
+            "exception_type": "NonZeroAgentExitCodeError",
+            "exception_message": "trusted post-run boundary failed: session evidence invalid: assistant provider error in session evidence",
+        }
+        timeout = {
+            "exception_type": "AgentTimeoutError",
+            "exception_message": "Agent execution timed out after 5400.0 seconds",
+        }
+        self.assertEqual(classify(None, provider_error_count=0), "completed")
+        self.assertEqual(
+            classify(recovered, provider_error_count=1),
+            "recovered-provider-error",
+        )
+        self.assertEqual(classify(recovered, provider_error_count=0), "invalid")
+        self.assertEqual(classify(timeout, provider_error_count=0), "timeout")
+        self.assertEqual(
+            classify(
+                {"exception_type": "OtherError", "exception_message": "failure"},
+                provider_error_count=1,
+            ),
+            "invalid",
+        )
+
     def test_manifest_validation_freezes_twelve_tasks_and_twenty_nine_subjects(self):
         manifest_path = Path(__file__).with_name("pilot-v1.json")
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -58,6 +123,13 @@ class PiAgentUnitTests(unittest.TestCase):
         execution = manifest["execution"]
         self.assertEqual(execution["maxContinuations"], 1)
         self.assertEqual(execution["continuationTrigger"], "trusted-dirty-worktree")
+        self.assertEqual(
+            execution["providerErrorPolicy"],
+            "final-error-invalid-recovered-errors-counted",
+        )
+        self.assertEqual(
+            execution["validFinalAssistantStopReasons"], ["stop", "toolUse"]
+        )
         self.assertEqual(execution["pierSquidSafePorts"], [80, 443, 8317])
         self.assertEqual(execution["pierSquidSslPorts"], [443])
         self.assertEqual(
@@ -482,6 +554,8 @@ docker_image = \"example/image:v1\"
                             "model": MODEL_ID,
                             "api": "anthropic-messages",
                             "thinking": "max",
+                            "providerErrorCount": 0,
+                            "recoveredProviderErrorCount": 0,
                             "agentUid": 1000,
                             "continuation": {
                                 "schemaVersion": 1,
@@ -492,7 +566,11 @@ docker_image = \"example/image:v1\"
                                 "statusBytes": 0,
                                 "statusSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
                             },
-                            "security": {"scanError": False, "credentialLeak": False},
+                            "security": {
+                                "scanError": False,
+                                "credentialLeak": False,
+                                "scanBudgetExceeded": False,
+                            },
                             "worktreeClean": True,
                             "worktreeStatusSha256": combined_status_sha,
                             "worktreeStatusBytes": 0,
@@ -523,8 +601,94 @@ docker_image = \"example/image:v1\"
             self.assertTrue(all(cell["complete"] for cell in cells))
             self.assertTrue(all(cell["proxyPolicyValid"] for cell in cells))
             self.assertTrue(all(cell["continuationCount"] == 0 for cell in cells))
+            self.assertTrue(all(cell["providerErrorCount"] == 0 for cell in cells))
+            self.assertTrue(
+                all(cell["recoveredProviderErrorCount"] == 0 for cell in cells)
+            )
 
             target_path = root / "full" / selected[0]["id"] / "result.json"
+            counter_target = json.loads(target_path.read_text(encoding="utf-8"))
+            counter_target["agent_result"]["metadata"]["providerErrorCount"] = 1
+            target_path.write_text(json.dumps(counter_target), encoding="utf-8")
+            cells = _condition_results(
+                output_root=root,
+                condition="full",
+                manifest=manifest,
+                host_credential_leaks=[],
+            )
+            invalid_error_counts = next(
+                cell for cell in cells if cell["taskId"] == selected[0]["id"]
+            )
+            self.assertFalse(invalid_error_counts["runtimeValid"])
+            counter_target["agent_result"]["metadata"]["providerErrorCount"] = 0
+            target_path.write_text(json.dumps(counter_target), encoding="utf-8")
+
+            counter_target["agent_result"]["metadata"]["security"][
+                "scanBudgetExceeded"
+            ] = True
+            target_path.write_text(json.dumps(counter_target), encoding="utf-8")
+            cells = _condition_results(
+                output_root=root,
+                condition="full",
+                manifest=manifest,
+                host_credential_leaks=[],
+            )
+            invalid_scan_budget = next(
+                cell for cell in cells if cell["taskId"] == selected[0]["id"]
+            )
+            self.assertFalse(invalid_scan_budget["runtimeValid"])
+            counter_target["agent_result"]["metadata"]["security"][
+                "scanBudgetExceeded"
+            ] = False
+            target_path.write_text(json.dumps(counter_target), encoding="utf-8")
+
+            timeout_target = json.loads(target_path.read_text(encoding="utf-8"))
+            valid_continuation = timeout_target["agent_result"]["metadata"]["continuation"]
+            timeout_target["agent_result"]["metadata"]["continuation"] = {
+                "schemaVersion": 1,
+                "maxContinuations": 1,
+                "count": 0,
+                "statusChecked": False,
+                "triggeredByDirtyWorktree": False,
+                "statusBytes": None,
+                "statusSha256": None,
+            }
+            timeout_target["exception_info"] = {
+                "exception_type": "AgentTimeoutError",
+                "exception_message": "Agent execution timed out after 5400.0 seconds",
+            }
+            timeout_status_path = target_path.parent / "agent" / "continuation-status.txt"
+            timeout_status_path.unlink()
+            target_path.write_text(json.dumps(timeout_target), encoding="utf-8")
+            cells = _condition_results(
+                output_root=root,
+                condition="full",
+                manifest=manifest,
+                host_credential_leaks=[],
+            )
+            timeout_cell = next(
+                cell for cell in cells if cell["taskId"] == selected[0]["id"]
+            )
+            self.assertTrue(timeout_cell["runtimeValid"])
+            self.assertFalse(timeout_cell["complete"])
+
+            timeout_target["agent_result"]["metadata"]["continuation"] = valid_continuation
+            timeout_status_path.write_bytes(b"")
+            target_path.write_text(json.dumps(timeout_target), encoding="utf-8")
+            cells = _condition_results(
+                output_root=root,
+                condition="full",
+                manifest=manifest,
+                host_credential_leaks=[],
+            )
+            checked_timeout = next(
+                cell for cell in cells if cell["taskId"] == selected[0]["id"]
+            )
+            self.assertFalse(checked_timeout["runtimeValid"])
+
+            timeout_target["exception_info"] = None
+            target_path.write_text(json.dumps(timeout_target), encoding="utf-8")
+
             continuation_status_path = target_path.parent / "agent" / "continuation-status.txt"
             continuation_status_path.write_bytes(b"M  src/example.ts\n")
             cells = _condition_results(
@@ -708,6 +872,7 @@ docker_image = \"example/image:v1\"
                         "provider": MODEL_PROVIDER,
                         "model": MODEL_ID,
                         "api": "anthropic-messages",
+                        "stopReason": "toolUse",
                         "usage": {
                             "input": 100,
                             "output": 20,
@@ -726,6 +891,7 @@ docker_image = \"example/image:v1\"
                         "provider": MODEL_PROVIDER,
                         "model": MODEL_ID,
                         "api": "anthropic-messages",
+                        "stopReason": "stop",
                         "usage": {
                             "input": 200,
                             "output": 50,
@@ -760,7 +926,36 @@ docker_image = \"example/image:v1\"
             rows[2]["thinkingLevel"] = "max"
             rows[3]["message"]["stopReason"] = "error"
             session.write_text("\n".join(json.dumps(row) for row in rows), encoding="utf-8")
-            with self.assertRaisesRegex(ValueError, "assistant provider error"):
+
+            recovered = parse_session_evidence(session)
+
+            self.assertEqual(recovered["provider_error_count"], 1)
+            self.assertEqual(recovered["recovered_provider_error_count"], 1)
+
+            rows.append(
+                {
+                    "type": "message",
+                    "message": {"role": "assistant", "stopReason": "stop"},
+                }
+            )
+            session.write_text("\n".join(json.dumps(row) for row in rows), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "invalid assistant evidence"):
+                parse_session_evidence(session)
+            rows.pop()
+
+            rows[5]["message"]["stopReason"] = "error"
+            session.write_text("\n".join(json.dumps(row) for row in rows), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "unrecovered assistant provider error"):
+                parse_session_evidence(session)
+
+            rows[5]["message"]["stopReason"] = "aborted"
+            session.write_text("\n".join(json.dumps(row) for row in rows), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "invalid assistant evidence"):
+                parse_session_evidence(session)
+
+            del rows[5]["message"]["stopReason"]
+            session.write_text("\n".join(json.dumps(row) for row in rows), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "invalid assistant evidence"):
                 parse_session_evidence(session)
 
             session.write_text("not-json\n", encoding="utf-8")
