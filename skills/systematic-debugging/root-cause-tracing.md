@@ -121,7 +121,7 @@ Runs tests one-by-one, stops at first polluter. See script for usage.
 
 **Fix:** Made tempDir a getter that throws if accessed before beforeEach
 
-**Also added defense-in-depth:**
+**Also added defense-in-depth (only the layers with an observed bypass):**
 - Layer 1: Project.create() validates directory
 - Layer 2: WorkspaceManager validates not empty
 - Layer 3: NODE_ENV guard refuses git init outside tmpdir
@@ -136,8 +136,8 @@ digraph principle {
     "Trace backwards" [shape=box];
     "Is this the source?" [shape=diamond];
     "Fix at source" [shape=box];
-    "Add validation at each layer" [shape=box];
-    "Bug impossible" [shape=doublecircle];
+    "Add validation where bypass exists" [shape=box];
+    "Recurrence blocked (verify by re-run)" [shape=doublecircle];
     "NEVER fix just the symptom" [shape=octagon, style=filled, fillcolor=red, fontcolor=white];
 
     "Found immediate cause" -> "Can trace one level up?";
@@ -146,10 +146,13 @@ digraph principle {
     "Trace backwards" -> "Is this the source?";
     "Is this the source?" -> "Trace backwards" [label="no - keeps going"];
     "Is this the source?" -> "Fix at source" [label="yes"];
-    "Fix at source" -> "Add validation at each layer";
-    "Add validation at each layer" -> "Bug impossible";
+    "Fix at source" -> "Add validation where bypass exists";
+    "Add validation where bypass exists" -> "Recurrence blocked (verify by re-run)";
 }
 ```
+
+Stop rule: a single layer covering all reachable paths, with no mock or
+refactor bypass, is enough — record the omitted layers and why.
 
 **NEVER fix just where the error appears.** Trace back to find the original trigger.
 
@@ -159,11 +162,13 @@ digraph principle {
 **Before operation:** Log before the dangerous operation, not after it fails
 **Include context:** Directory, cwd, environment variables, timestamps
 **Capture stack:** `new Error().stack` shows complete call chain
+**After the fix:** Delete every DEBUG probe added here. Landed code keeps no
+temporary logging.
 
 ## Real-World Impact
 
 From debugging session (2025-10-03):
 - Found root cause through 5-level trace
 - Fixed at source (getter validation)
-- Added 4 layers of defense
+- Added the layers with an observed bypass
 - 1847 tests passed, zero pollution

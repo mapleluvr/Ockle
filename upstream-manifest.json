@@ -11,7 +11,10 @@
       "path": "skills/test-driven-development/SKILL.md",
       "upstreamSha256": "bf1b8216e523851a411e91d429a7c1c2a173e79d88957bc78e348218d50edd54",
       "localSha256AtImport": "bf1b8216e523851a411e91d429a7c1c2a173e79d88957bc78e348218d50edd54",
-      "status": "unchanged"
+      "status": "modified",
+      "deviations": [
+        "Over-test tightening: behavior-oracle granularity replaces per-function checklist, trivial scoped to consumer-visible coverage, RED/GREEN split into scoped check plus batch-boundary full suite with batching."
+      ]
     },
     {
       "path": "skills/test-driven-development/writing-good-tests.md",
@@ -19,7 +22,8 @@
       "localSha256AtImport": "5dc3490c58894ee026e11f98cbdd0de8a40e19eaa7df9b86647931317ccedf44",
       "status": "modified",
       "deviations": [
-        "Replaced the superpowers:writing-skills cross-reference with a direct behavioral-evaluation statement."
+        "Replaced the superpowers:writing-skills cross-reference with a direct behavioral-evaluation statement.",
+        "Over-test tightening: Mutation Check gains risk grading, trivial exclusion for the fifth class, and a no-new-kill stop rule."
       ]
     },
     {
@@ -30,7 +34,8 @@
       "deviations": [
         "Added the deterministic short path already present in superpowers-lite for obvious single-component failures.",
         "Rebound the TDD reference to Ockle's local test-driven-development skill.",
-        "Replaced the absent verification-before-completion skill reference with direct reproduction and affected-suite verification."
+        "Replaced the absent verification-before-completion skill reference with direct reproduction and affected-suite verification.",
+        "Over-test tightening: regression-test skip exceptions, probe cleanup discipline, and shared verification runs for understood independent fixes."
       ]
     },
     {
@@ -39,7 +44,8 @@
       "localSha256AtImport": "131675e2b85849ea20383465f681d3aa448e2fabb8eb5070d8098608cf6da53e",
       "status": "modified",
       "deviations": [
-        "Renamed worktree/package-specific example identifiers to neutral repository identifiers."
+        "Renamed worktree/package-specific example identifiers to neutral repository identifiers.",
+        "Over-test tightening: absolute rhetoric downgraded to session-scoped claims, stop rule added, probes ordered deleted after the fix."
       ]
     },
     {
@@ -48,7 +54,8 @@
       "localSha256AtImport": "97b77fddc36dbb86d1580fc4f74ff170bb25b75fa7c08f135403c3a950d411af",
       "status": "modified",
       "deviations": [
-        "Renamed one worktree-specific example identifier to a neutral repository identifier."
+        "Renamed one worktree-specific example identifier to a neutral repository identifier.",
+        "Over-test tightening: invalid-data scope gate, stop-when-covered rule, Layer 4 reclassified as observability, Layer 3 kept as a restricted exception with four admission conditions."
       ]
     },
     {
@@ -76,7 +83,8 @@
       "status": "modified",
       "deviations": [
         "Removed the GitHub gh-api reply instruction because host tool mapping is outside the methodology core.",
-        "Made declared compatibility ranges authoritative after the first real-code review eval rewrote Node support and its regression test in 3/3 loaded-skill runs."
+        "Made declared compatibility ranges authoritative after the first real-code review eval rewrote Node support and its regression test in 3/3 loaded-skill runs.",
+        "Over-test tightening: understood independent fixes may share one regression run without merging reasoning."
       ]
     }
   ]

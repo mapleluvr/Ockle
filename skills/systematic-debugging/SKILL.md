@@ -100,6 +100,9 @@ The deterministic short path above is the condensed form for obvious local cases
    THEN investigate that specific component
    ```
 
+   Probes are temporary: remove them before the fix lands. A pinpoint probe
+   may replace full-boundary logging as the exception.
+
    **Example (multi-layer system):**
    ```bash
    # Layer 1: Workflow
@@ -191,10 +194,13 @@ The deterministic short path above is the condensed form for obvious local cases
    - One-off test script if no framework
    - MUST have before fixing
    - Use the `test-driven-development` skill for writing proper failing tests
+   - Skip a permanent regression test only for environmental failures with
+handling, one-off reproductions, or a covered equivalence class. State which.
 
 2. **Implement Single Fix**
    - Address the root cause identified
-   - ONE change at a time
+   - ONE change at a time (one root cause; understood independent fixes may
+share one verification run)
    - No "while I'm here" improvements
    - No bundled refactoring
 

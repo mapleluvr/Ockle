@@ -164,6 +164,14 @@ should fail for each realistic mutation:
 - Empty or default return
 - Missing validation for zero, empty, nil, unauthorized, or malformed input
 
+Risk grading: low-risk changes stop after the first two classes
+(constant/argument, branch handler) kill. Run the remaining three only
+where the code validates, normalizes, defaults, derives, enforces, or
+causes side effects. The fifth class never applies to trivial code — it is
+covered through its first consumer-visible result. Stop when a further
+mutation class adds no new kill; `realistic` means a mistake a careful
+developer could actually make here, not every conceivable edit.
+
 A mutation nothing catches marks the behavior as unprotected — or the
 test as tautological.
 

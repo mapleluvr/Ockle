@@ -114,7 +114,8 @@ FOR multi-item feedback:
      - Blocking issues (breaks, security)
      - Simple fixes (typos, imports)
      - Complex fixes (refactoring, logic)
-  3. Test each fix individually
+  3. Test each fix individually; independent fixes already understood may share
+     one regression run (batch the run, never the reasoning)
   4. Verify no regressions
 ```
 

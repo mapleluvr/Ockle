@@ -169,18 +169,26 @@ Don't add features, refactor other code, or "improve" beyond the test.
 
 **MANDATORY.**
 
+Per increment, run the scoped check:
+
 ```bash
 npm test path/to/test.test.ts
 ```
 
 Confirm:
-- Test passes
-- Other tests still pass
+- Target test passes
 - Output pristine (no errors, warnings)
 
 **Test fails?** Fix code, not test.
 
-**Other tests fail?** Fix now.
+Run the full suite (`npm test`, no path filter) only at batch boundaries:
+when the change touches shared code, when finishing a batch of related
+behaviors, and before marking work complete. That run must show all green —
+a failure there is fixed now, not parked.
+
+Batching: related behaviors may share one RED run (several failing oracles
+at once) and one full-suite GREEN run. Keep each oracle independently
+failing-first; batching merges runs, never evidence.
 
 ### REFACTOR - Clean Up
 
@@ -193,13 +201,14 @@ Keep tests green. Don't add behavior.
 
 ### Repeat
 
-Next failing test for next feature.
+Next failing test for next behavior. Unrelated behaviors may accumulate
+into one batch and share the full-suite GREEN run above.
 
 ## Good Tests
 
 | Quality | Good | Bad |
 |---------|------|-----|
-| **Minimal** | One thing. "and" in name? Split it. | `test('validates email and domain and whitespace')` |
+| **Minimal** | One behavior per test. Split only when "and" joins different consumer-observable behaviors; multiple inputs of one behavior share a single table-driven test with literal `want` values. | `test('validates email and sends welcome email')` |
 | **Clear** | Name describes behavior | `test('test1')` |
 | **Shows intent** | Demonstrates desired API | Obscures what code should do |
 
@@ -213,7 +222,7 @@ When writing or changing any test, read [writing-good-tests.md](writing-good-tes
 
 | Excuse | Reality |
 |--------|---------|
-| "Too simple to test" | Simple code breaks. Test takes 30 seconds. |
+| "Too simple to test" | Simple code breaks. Cover it through its first consumer-visible behavior test — trivial code earns no test of its own (see [writing-good-tests.md](writing-good-tests.md)). |
 | "I'll test after" | Tests written after pass immediately — which proves nothing. They may test the wrong thing, test the implementation instead of the behavior, or miss the edge case you forgot. You never watched it fail, so you never proved it can catch the bug. Test-first forces that failure. |
 | "Tests after achieve same goals (spirit not ritual)" | Tests-after answer "what does this do?"; tests-first answer "what should this do?" Tests written after are biased by the code you already wrote — you verify the cases you remembered, not the ones you'd have discovered. Coverage without proof the tests work. |
 | "Already manually tested" | Manual testing is ad-hoc: no record of what you covered, no way to re-run it when the code changes, easy to forget cases under pressure. "Worked when I tried it" ≠ comprehensive. Automated tests run the same way every time. |
@@ -257,7 +266,7 @@ test('rejects empty email', async () => {
 
 **Verify RED**
 ```bash
-$ npm test
+$ npm test # full suite (single-behavior batch)
 FAIL: expected 'Email required', got undefined
 ```
 
@@ -273,7 +282,7 @@ function submitForm(data: FormData) {
 
 **Verify GREEN**
 ```bash
-$ npm test
+$ npm test # full suite (single-behavior batch)
 PASS
 ```
 
@@ -284,14 +293,14 @@ Extract validation for multiple fields if needed.
 
 Before marking work complete:
 
-- [ ] Every new function/method has a test
+- [ ] Each behavior on a stable consumer boundary has an oracle that failed first
 - [ ] Watched each test fail before implementing
 - [ ] Each test failed for expected reason (feature missing, not typo)
 - [ ] Wrote minimal code to pass each test
 - [ ] All tests pass
 - [ ] Output pristine (no errors, warnings)
 - [ ] Tests use real code (mocks only if unavoidable)
-- [ ] Edge cases and errors covered
+- [ ] Edge cases and errors covered: every error branch named by the Gate Function in [writing-good-tests.md](writing-good-tests.md) has a literal-`want` case; trivial code is covered through its first consumer-visible result, not its own test. Stop when the Mutation Check adds no new kill.
 
 Can't check all boxes? You skipped TDD. Start over.
 
