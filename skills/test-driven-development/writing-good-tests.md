@@ -1,205 +1,122 @@
 # Writing Good Tests
 
-**Load this reference when:** writing or changing tests, adding mocks, or
-adding cleanup/helper methods for tests.
+Use this reference to design checks, choose test boundaries and doubles,
+or reconsider tests affected by current work.
 
-## Overview
+## Establish what the test can tell you
 
-A test exists to catch a specific break. Two principles govern everything
-here:
+A useful test distinguishes behavior that matters from a plausible wrong
+result. Ask what mistake it would reveal and why the expected result is
+right. A requirement, a compatibility promise, and a temporary design
+hypothesis have different authority; writing an assertion does not erase
+that difference.
 
-```
-1. Every test names the break it catches
-2. Every test exercises the real thing
-```
+Derive expectations independently of the code being checked. Literal
+values and hand-checked fixtures often make this clear. Independently
+justified properties or reference results can cover cases where individual
+examples are insufficient. Computing both expected and actual values with
+the same production helper can hide the very defect under investigation.
 
-Strict TDD produces both naturally: a test written first and watched
-failing against real code has already proven it can fail, and only earns
-a mock when the real dependency proves slow or external.
+Assert through meaningful consumer-visible behavior, not one test per
+function. Straightforward constructors, getters, constants, and forwarding
+code are covered through the first consumer-visible result that depends
+on them. A focused lower-level check can help when it protects a distinct
+rule or makes a relevant failure easier to exercise and diagnose.
 
-## Principle 1: Name the Break
+Exact values or structure are useful when they are the contract, such as
+a wire format or a documented default. Private arrangement or incidental
+wording should not acquire a compatibility promise merely because a test
+records it. Use related assertions or table cases where they describe one
+behavior; split checks when the distinction helps diagnosis or isolation.
 
-Before writing the test body, answer: **what production change should
-make this test fail — and is that change a bug or a decision?** A test
-earns its place by catching a wrong branch, missing side effect, wrong
-argument, boundary case, or broken contract.
+Structural checks can verify metadata, schemas, or resolvable references.
+They do not establish runtime behavior. To check a script's effects, run
+it; to assess instructions for an agent, observe the consuming agent on
+relevant work. Existing framework guarantees usually need no duplicate
+tests, but your registration, configuration, or integration may.
 
-**Derive expectations independently.** Use literals and hand-checked
-fixtures; table-driven tests with literal `want` values are the preferred
-shape. An expectation computed by the code under test — or its helpers —
-passes no matter what that code does:
+## Choose a sufficient boundary
 
-```typescript
-// ❌ Mirror assertion: the same builder computes both sides — always true
-const expected = buildSearchQuery({ tag: 'urgent' });
-expect(buildSearchQuery({ tag: 'urgent' })).toBe(expected);
+A feature-level testing goal does not require every check to run the full
+application. Keep the behavior under examination real. The needed boundary
+depends on the failure: a component may establish input handling, while
+process startup, permission propagation, or consumption of an installed
+artifact may require an integration or end-to-end check.
 
-// ✅ Hand-derived literal
-expect(buildSearchQuery({ tag: 'urgent' })).toBe('tag:"urgent"');
-```
+Use doubles for dependencies whose real execution is unnecessary or
+impractical for that question. Preserve the data and effects the tested
+behavior depends on. A fake that swallows a configuration write cannot
+establish behavior that later reads that configuration. Assertions about
+arguments, order, or call counts are useful when they express your
+component's obligations; merely proving that a mock exists is not.
 
-**No change detectors.** If only intentional decisions can fail a test —
-a constant's value, exact message wording, private structure — it fires
-on redesign and sleeps through bugs. Test the behavior that depends on
-the decision: not `expect(MAX_RETRIES).toBe(5)` but "a failing call is
-retried 5 times and the 6th attempt never happens."
+Use valid, representative fixtures for the interface under test. Include
+fields and interactions needed by its consumers, and model omitted or
+malformed values deliberately when those are the subject of the check.
+Copying every field of an external system is not itself better coverage.
 
-**Behavior, not text.** Asserting that a script, skill, or config
-contains an exact line proves only that the source is the source. Run
-scripts against controlled inputs and assert outputs, side effects, or
-exit codes. Documents that instruct agents are tested by observing the
-consuming agent's behavior; prose for humans earns no test at all.
+When setup becomes hard to understand, reconsider the boundary and fixture
+before adding more scaffolding. A smaller real component, a shared fixture,
+or a narrow double may be better than either an elaborate mock or another
+full-stack test. Measure costly alternatives rather than assuming a lower
+layer will be cheap.
 
-**Your code, not the framework.** Test the contract your code makes at
-its boundaries — the route you register, the query you emit, the payload
-you produce. Upstream mechanics are their maintainers' tests to write
-(the classic: asserting your router invokes a registered handler — that
-is the framework's test, not yours). When upstream behavior genuinely
-surprised you, write one narrow characterization test naming the
-assumption. The same boundary applies inside your code: constructors,
-getters, constants, and trivial forwarding earn tests only when they
-validate, normalize, default, derive, enforce, or cause side effects —
-otherwise assert the first consumer-visible result that depends on them.
+Test-specific controls and cleanup belong in test utilities. A production
+component that owns resources may still need a genuine lifecycle API;
+judge that responsibility rather than only counting its current callers.
 
-### Gate Function
+## Maintain a growing suite
 
-```
-BEFORE writing the test body:
-  Name the production change that would make this test fail.
+Revisit affected tests when requirements change, fixtures become misleading,
+coverage overlaps, or feedback becomes costly. Use representative timings
+and recurring failures to locate the expensive or confusing parts. Consider
+what a test proves now, whether that proof is worth retaining, and when it
+needs to run. Work on the relevant collection rather than auditing every
+test on every turn.
 
-  Cannot name one            → redesign around an observable behavior
-  "The source text changed"  → run the artifact and assert its effects
-  Only intentional decisions → change detector; test the behavior
-                               that depends on the decision
+**Group for use.** Use existing directories, tags, runner filters, or scripts
+to give common work a suitable entrypoint. A small everyday set, affected
+feature groups, and broader or delivery-specific checks can serve different
+questions. Choose groups from the actual dependencies and costs, not just
+unit/integration/E2E labels. Changes to shared contracts or uncertain impact
+may need broader selection. Keep retained tests discoverable and runnable;
+new files should not silently fall outside every selection path.
 
-  Confirm the expected value is derived without the code under test.
-  IF it reuses the code's logic or helpers:
-    Replace it with a literal or hand-checked fixture
-```
+**Reduce duplicated work.** Combine repeated setup where isolation permits,
+use table cases for related inputs, and remove overlapping scenarios whose
+useful assertions are covered elsewhere. Move condition combinations to a
+smaller real boundary when it can establish them, while retaining the
+cross-layer or process cases with distinct value. Preserve useful failure
+localization; one giant scenario is not necessarily cheaper to maintain.
+For important coverage whose survival is unclear, a targeted negative
+control can check that the relevant mistake is still caught. Measure the
+result rather than using fewer files or assertions as evidence of savings.
 
-## Principle 2: Exercise the Real Thing
+**Make exclusions intentional.** A valuable but expensive test can remain
+outside the everyday set and run through a documented affected-change,
+release, or explicit command. That is an execution choice, not a claim that
+the test has passed, and usually does not need a permanent source-level
+skip. An environment-specific test can skip where its prerequisite does
+not apply, while remaining runnable in the intended environment.
 
-**The mock earns no assertions.** A mock assertion passes when the mock
-is present and fails when it is absent — it says nothing about the
-component. Assert the real component's behavior; if the mock is what you
-are checking, unmock it or delete the assertion.
+A broken fixture or flaky test may need temporary isolation or an explicit
+skip while it is investigated. Keep the reason, unresolved failure, and
+condition for restoring it visible in the existing test or issue record;
+retain a way to reproduce it. If that check is required for the current
+delivery, its exclusion remains a verification gap. When the requirement
+has ended or coverage is genuinely redundant, revise or remove the test
+rather than leaving it indefinitely skipped. Cost, age, or recent passes
+alone do not decide whether a test is obsolete.
 
-```typescript
-// ✅ Real behavior
-expect(screen.getByRole('navigation')).toBeInTheDocument();
+**Check the resulting entrypoints.** Inspect what each changed selection
+includes and excludes, and run the checks needed to validate the test edits
+and runner changes. Confirm that important remaining assertions still work
+and that groups select the intended tests. Put durable selection choices
+in existing runner configuration or test guidance, not a new per-test
+ledger. One-off probes may leave useful results and conditions without
+becoming routine suite members.
 
-// ❌ Mock existence
-expect(screen.getByTestId('sidebar-mock')).toBeInTheDocument();
-```
-
-**your human partner's correction:** "Are we testing the behavior of a
-mock?"
-
-**Mock at the right level.** Learn every side effect of the real method
-before replacing it; mock the slow or external operation and keep what
-the test depends on real. When unsure, run the test against the real
-implementation first and observe what actually needs to happen.
-
-```typescript
-// ❌ The mock swallows the config write that duplicate detection reads
-vi.mock('ToolCatalog', () => ({
-  discoverAndCacheTools: vi.fn().mockResolvedValue(undefined)
-}));
-
-// ✅ Mock only the slow server startup; the config write stays real
-vi.mock('MCPServerManager');
-```
-
-**Make doubles specific.** When arguments, call counts, or ordering are
-part of the contract, assert them — a fake that accepts anything verifies
-nothing. Give each branch (success, error, malformed) its own fixture or
-spy, so the wrong branch cannot satisfy the expectation.
-
-**Mirror real data completely.** Mock the complete structure as it exists
-in reality — all documented fields — not just the ones your test reads.
-Partial mocks fail silently when downstream code reads an omitted field:
-the test passes while integration breaks.
-
-**Production classes carry production methods only.** Cleanup that only
-tests need lives in test utilities, never as a `destroy()` on the
-production class. Ask: is this method called only from tests? Does this
-class own this resource's lifecycle? Wrong answers → test utility.
-
-**Prefer real components over complex mocks.** When mock setup outgrows
-the test logic, mocks miss methods the real components have, or tests
-break when the mock changes, switch to an integration test with real
-components. **your human partner's question:** "Do we need to be using a
-mock here?"
-
-### Gate Function
-
-```
-BEFORE adding a mock or test helper:
-  List the real method's side effects; keep the ones the test
-  depends on real — mock the slow/external level below them.
-
-  Mock responses mirror the complete real structure.
-
-  A method only tests call lives in test utilities, not production.
-
-  About to assert on the mock itself?
-    Unmock it or delete the assertion.
-```
-
-## Tests Ship With the Implementation
-
-The TDD cycle — failing test, minimal implementation, refactor — is what
-"complete" means. Ship the tests the behavior needs and only those:
-trivial code and human prose earn none, and a test written to satisfy
-process costs maintenance forever.
-
-## The Mutation Check
-
-Before finishing, mentally mutate the production code; at least one test
-should fail for each realistic mutation:
-
-- Wrong constant or argument
-- Wrong branch handler
-- Missing state change or side effect
-- Empty or default return
-- Missing validation for zero, empty, nil, unauthorized, or malformed input
-
-Risk grading: low-risk changes stop after the first two classes
-(constant/argument, branch handler) kill. Run the remaining three only
-where the code validates, normalizes, defaults, derives, enforces, or
-causes side effects. The fifth class never applies to trivial code — it is
-covered through its first consumer-visible result. Stop when a further
-mutation class adds no new kill; `realistic` means a mistake a careful
-developer could actually make here, not every conceivable edit.
-
-A mutation nothing catches marks the behavior as unprotected — or the
-test as tautological.
-
-## Quick Reference
-
-| When you... | Do |
-|-------------|-----|
-| Write any test | Name the break it catches — a bug, not a decision |
-| Build an expected value | Derive it by hand; never with the code under test |
-| Test a script or document | Run it / pressure-test its consumer; never grep its text |
-| Reach for a dependency test | Test your boundary contract, not their documented mechanics |
-| Want to assert on a mocked element | Test the real component, or unmock it |
-| Are about to mock a method | Learn its side effects; mock the slow/external level |
-| Build a mock response | Mirror the real structure completely |
-| Need cleanup only tests use | Put it in test utilities |
-| Watch mock setup balloon | Switch to an integration test with real components |
-| Finish a test file | Run the mutation check |
-
-## Warning Signs
-
-- Setup and assertion share the same object, guaranteeing equality
-- The test can fail only through a panic, crash, or missing selector
-- The test fails on every intentional change, never on accidental breakage
-- Expected values are hidden behind loops, builders, or helpers
-- The test greps source text, or asserts a removed symbol stays removed
-- The test would still matter if only the framework remained
-- The test exists for coverage, checking no side effect or outcome
-- An assertion checks a `*-mock` test ID, or fails if you remove the mock
-- A method is called only from test files
-- Mock setup is more than half the test, or you can't explain why the mock is needed
-- Mocking "just to be safe"
+[Editing Tests](editing-tests.md) illustrates these choices. Maintain these
+arrangements as relevant work exposes a need; they are not extra phases of
+every TDD cycle. Preserve unresolved failures and distinguish unexecuted
+coverage from passing results.

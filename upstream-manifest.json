@@ -13,7 +13,8 @@
       "localSha256AtImport": "bf1b8216e523851a411e91d429a7c1c2a173e79d88957bc78e348218d50edd54",
       "status": "modified",
       "deviations": [
-        "Over-test tightening: behavior-oracle granularity replaces per-function checklist, trivial scoped to consumer-visible coverage, RED/GREEN split into scoped check plus batch-boundary full suite with batching."
+        "Over-test tightening: behavior-oracle granularity replaces per-function checklist, trivial scoped to consumer-visible coverage, RED/GREEN split into scoped check plus batch-boundary full suite with batching.",
+        "2026-11-16 revision: Retained feature-level, stable-consumer-boundary test scope while replacing unconditional test-first, delete-and-restart, and full-suite completion rules with example-guided development and change-appropriate verification; the earlier mandatory batch-boundary full-suite rule is superseded."
       ]
     },
     {
@@ -23,8 +24,14 @@
       "status": "modified",
       "deviations": [
         "Replaced the superpowers:writing-skills cross-reference with a direct behavioral-evaluation statement.",
-        "Over-test tightening: Mutation Check gains risk grading, trivial exclusion for the fifth class, and a no-new-kill stop rule."
+        "Over-test tightening: Mutation Check gains risk grading, trivial exclusion for the fifth class, and a no-new-kill stop rule.",
+        "2026-11-16 revision: Replaced fixed gates and the mandatory Mutation Check with independently justified expectations, sufficient real boundaries, focused negative controls, and suite maintenance covering grouping, consolidation, execution selection, temporary skips, and test retention."
       ]
+    },
+    {
+      "path": "skills/test-driven-development/editing-tests.md",
+      "status": "local",
+      "provenance": "Authored for Ockle from owner-supplied development-session observations and the TDD revision discussion. Cases distinguish recorded outcomes from suggested maintenance choices; this file is not an upstream import."
     },
     {
       "path": "skills/systematic-debugging/SKILL.md",

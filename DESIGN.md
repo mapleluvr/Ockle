@@ -36,7 +36,8 @@ Ockle/
 ├── skills/                              # 发布的 Skill Pack
 │   ├── test-driven-development/
 │   │   ├── SKILL.md
-│   │   └── writing-good-tests.md
+│   │   ├── writing-good-tests.md
+│   │   └── editing-tests.md
 │   ├── systematic-debugging/
 │   │   ├── SKILL.md
 │   │   ├── root-cause-tracing.md
@@ -112,22 +113,24 @@ Ockle/
 
 **方法**
 
-1. 在稳定消费边界上表达一个失败的行为例子。
-2. 观察失败确实来自缺失行为，而不是测试装置错误。
-3. 实现使该例子通过的最小代码变化。
-4. 保持相关既有 oracle 有效，完成必要重构并复验。
+- 按功能在稳定消费边界上的可观察行为组织检查，不按修改的函数清单配测试。复用已有检查；需要时补充能区分正确与错误的例子。
+- 行为明确或缺陷可复现时，用 test-first 取得实现前后的反馈。接口尚未成形时，允许小原型、调用实验和实现帮助发展认识；特征刻画和重构检查可以从通过状态开始。用户或仓库明确要求的 test-first 顺序仍遵守。
+- 核对失败来自实现、预期、测试装置还是环境。依据当前有效契约修订相应部分，不因测试已经存在就把其预期视为不可改变，也不为迎合实现削弱有效要求。
+- 按变更及交付要求选择验证范围。测试累积时，随相关工作维护分组、压缩重复覆盖和配置选择／skip；不把全量运行或套件审计设为每轮固定阶段。未运行、skip 和未解决失败不冒充通过。
+
+测试的有效性、真实边界、替身与套件维护见 [writing-good-tests.md](skills/test-driven-development/writing-good-tests.md)；已有测试的修改情境见 [editing-tests.md](skills/test-driven-development/editing-tests.md)。
 
 **术语**
 
 - `desired behavior`：用户或仓库要求的行为。
 - `oracle`：能区分正确与错误的可执行检查。
-- `RED`：oracle 因目标行为缺失而失败。
+- `RED`：采用 test-first 时，oracle 因目标行为缺失而失败。
 - `GREEN`：同一 oracle 在实现后通过。
-- `refactor`：不改变已证明行为的结构改进。
+- `refactor`：不改变约定行为的结构改进。
 
 **输出**
 
-`patch + RED/GREEN 证据`。
+必要的 `patch`，以及已执行验证的结果、范围与限制。采用 test-first 时保留相应的失败／通过依据，不要求为所有工作重新制造 RED/GREEN。
 
 **设计边界（不写入该 `SKILL.md`）**：该方法不拥有交付拆分、持久进度或跨会话状态。
 

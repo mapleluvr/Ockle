@@ -3,7 +3,8 @@
 Ockle's initial inner-loop skills are derived from portions of
 [obra/superpowers](https://github.com/obra/superpowers), version `v6.2.0`,
 commit `3dcbd5c4b48e02263fbf4a3c01e3fe4f81d584d9`. The exact source files and
-local deviations are recorded in `upstream-manifest.json`.
+local deviations are recorded in `upstream-manifest.json`. Entries marked
+`local` identify Ockle-authored additions rather than upstream imports.
 
 Those derived portions are used under the following license. This notice does
 not declare a project-wide license for Ockle.
