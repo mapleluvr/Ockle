@@ -42,7 +42,8 @@
         "Added the deterministic short path already present in superpowers-lite for obvious single-component failures.",
         "Rebound the TDD reference to Ockle's local test-driven-development skill.",
         "Replaced the absent verification-before-completion skill reference with direct reproduction and affected-suite verification.",
-        "Over-test tightening: regression-test skip exceptions, probe cleanup discipline, and shared verification runs for understood independent fixes."
+        "Over-test tightening: regression-test skip exceptions, probe cleanup discipline, and shared verification runs for understood independent fixes.",
+        "2026-11-17 revision: Replaced the mandatory four-phase investigation, all-boundary instrumentation, pre-fix test gate, and attempt-count architecture rule with evidence-directed observations and reversible experiments, responsibility-appropriate repair, change-appropriate verification, and explicit containment and diagnostic limits; earlier fixed-process exceptions are superseded."
       ]
     },
     {
@@ -52,7 +53,8 @@
       "status": "modified",
       "deviations": [
         "Renamed worktree/package-specific example identifiers to neutral repository identifiers.",
-        "Over-test tightening: absolute rhetoric downgraded to session-scoped claims, stop rule added, probes ordered deleted after the fix."
+        "Over-test tightening: absolute rhetoric downgraded to session-scoped claims, stop rule added, probes ordered deleted after the fix.",
+        "2026-11-17 revision: Retained backward tracing while distinguishing trigger, symptom, and repair responsibility; removed automatic additional defense, exhaustive-trace rules, omitted-layer records, and universal success claims. Clarified the sequential polluter script and its isolation and ordering limits."
       ]
     },
     {
@@ -62,14 +64,18 @@
       "status": "modified",
       "deviations": [
         "Renamed one worktree-specific example identifier to a neutral repository identifier.",
-        "Over-test tightening: invalid-data scope gate, stop-when-covered rule, Layer 4 reclassified as observability, Layer 3 kept as a restricted exception with four admission conditions."
+        "Over-test tightening: invalid-data scope gate, stop-when-covered rule, Layer 4 reclassified as observability, Layer 3 kept as a restricted exception with four admission conditions.",
+        "2026-11-17 revision: Replaced the four-layer validation template and layer-count stop rule with effect ownership, distinct entries and trust boundaries, and explicit authorization-resource and timing semantics. Test-double bypasses do not by themselves justify production guards; logging remains observability, not prevention."
       ]
     },
     {
       "path": "skills/systematic-debugging/condition-based-waiting.md",
       "upstreamSha256": "e89fec8400d6cd50f43407cec9fab50976ba4d55d0ec2eb51c0bd68036b54c26",
       "localSha256AtImport": "e89fec8400d6cd50f43407cec9fab50976ba4d55d0ec2eb51c0bd68036b54c26",
-      "status": "unchanged"
+      "status": "modified",
+      "deviations": [
+        "2026-11-17 revision: Replaced fixed polling guidance and historical universal reliability claims with operation-correlated completion signals, fresh-state polling, bounded waits, context-appropriate intervals, and explicit timing-contract checks; the bundled example remains unchanged."
+      ]
     },
     {
       "path": "skills/systematic-debugging/condition-based-waiting-example.ts",
@@ -91,7 +97,8 @@
       "deviations": [
         "Removed the GitHub gh-api reply instruction because host tool mapping is outside the methodology core.",
         "Made declared compatibility ranges authoritative after the first real-code review eval rewrote Node support and its regression test in 3/3 loaded-skill runs.",
-        "Over-test tightening: understood independent fixes may share one regression run without merging reasoning."
+        "Over-test tightening: understood independent fixes may share one regression run without merging reasoning.",
+        "2026-11-17 revision: Separated reported behavior, valid commitments, and proposed remedies; preserved declared compatibility while removing mandatory response wording, all-items clarification blocking, and per-finding verification sequencing. Independent understood fixes may share a run, and reviewer agreement does not validate a shared premise."
       ]
     }
   ]

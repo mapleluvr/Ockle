@@ -94,7 +94,7 @@ Ockle/
 ## 3. 分层职责
 
 | 层 | 责任 | 明确不拥有 |
-|---|---|---|
+| --- | --- | --- |
 | 仓库 ground truth | tests、schemas、API contracts、兼容性工具、仓库约束 | Agent 流程状态 |
 | 方法内核 | TDD、根因调试、审查 finding 的验证与修正 | 规划、派发、持久化、任务完成判定 |
 | 能力扩展 | 是否值得并行、完整集合的集成纪律、无人值守边界判断 | Harness 调用教程、canonical work units |
@@ -107,11 +107,11 @@ Ockle/
 
 ### 4.1 `test-driven-development`
 
-**Trigger**
+#### Trigger
 
 新增或改变可执行行为，或者需要修复已有行为回归。
 
-**方法**
+#### 方法
 
 - 按功能在稳定消费边界上的可观察行为组织检查，不按修改的函数清单配测试。复用已有检查；需要时补充能区分正确与错误的例子。
 - 行为明确或缺陷可复现时，用 test-first 取得实现前后的反馈。接口尚未成形时，允许小原型、调用实验和实现帮助发展认识；特征刻画和重构检查可以从通过状态开始。用户或仓库明确要求的 test-first 顺序仍遵守。
@@ -120,7 +120,7 @@ Ockle/
 
 测试的有效性、真实边界、替身与套件维护见 [writing-good-tests.md](skills/test-driven-development/writing-good-tests.md)；已有测试的修改情境见 [editing-tests.md](skills/test-driven-development/editing-tests.md)。
 
-**术语**
+#### 术语
 
 - `desired behavior`：用户或仓库要求的行为。
 - `oracle`：能区分正确与错误的可执行检查。
@@ -128,7 +128,7 @@ Ockle/
 - `GREEN`：同一 oracle 在实现后通过。
 - `refactor`：不改变约定行为的结构改进。
 
-**输出**
+#### 输出
 
 必要的 `patch`，以及已执行验证的结果、范围与限制。采用 test-first 时保留相应的失败／通过依据，不要求为所有工作重新制造 RED/GREEN。
 
@@ -136,73 +136,77 @@ Ockle/
 
 ### 4.2 `systematic-debugging`
 
-**Trigger**
+#### Trigger
 
-存在可观察失败，但根因未知；包括测试失败、运行时错误、性能异常和环境差异。
+调查 bug、失败检查或运行、构建、性能方面的意外行为；不只限于根因未知的情况。
 
-**方法**
+#### 方法
 
-1. 建立稳定 reproduction。
-2. 沿数据流和控制流定位最早的错误状态。
-3. 为一个可证伪的 hypothesis 设计最小实验。
-4. 修复 owning layer，而不是掩盖下游症状。
-5. 将 reproduction 固化为 regression oracle，并复验受影响闭包。
+- 从实际失败、发生条件和期望结果出发，保留原始报错或测量。核对期望是否仍有效，以及观察是否真正触及待检查的行为；准备阶段失败不等于产品行为失败。
+- 用当前不确定性选择比较、追踪或观察。已有用例和相关代码足以解释局部失败时，可直接修正复验；否则在能区分解释的位置取得必要信息，不以完成固定阶段或全链插桩为前提。
+- 可逆改动可以作为实验，但需知道结果支持或削弱哪个解释，避免无关变化混入对照。反直觉结果先检查装置、时钟和计量是否有效；尝试次数本身不证明架构有误。
+- 在承担有效要求的组件修复。触发位置、报错位置和修复职责可能不同；装置有误时修装置后执行原行为，预期有误时先确立依据，再改断言。保留仍有效的契约保护。
+- 在可比条件下复验原问题，检查受影响消费者及交付要求。复用已有回归；有持续保护价值时在稳定消费边界补充。临时探针完成用途后清理，有持续诊断需要的另行支持；间歇故障说明复验条件和范围，不以一次通过证明根因消失。
+- 经授权可以先回滚或限制影响，核实实际恢复了什么。诊断仍开放时保留未知、已排除解释及下一项有用观察，缓解不冒充已验证修复。
 
-**术语**
+按具体问题使用 [root-cause-tracing.md](skills/systematic-debugging/root-cause-tracing.md)、[defense-in-depth.md](skills/systematic-debugging/defense-in-depth.md) 和 [condition-based-waiting.md](skills/systematic-debugging/condition-based-waiting.md)；测试设计与修订按需接入 `test-driven-development`。
 
-- `symptom`：外部观察到的错误。
-- `reproduction`：稳定触发 symptom 的方法。
-- `observation`：工具实际返回的事实。
-- `hypothesis`：可由实验否证的根因解释。
-- `root cause`：产生首个错误状态的 owning-layer 缺陷。
-- `regression oracle`：防止同类根因回归的检查。
+#### 术语
+
+- `symptom`：实际观察到的失败或意外结果，尚不决定它来自产品、装置、预期还是环境。
+- `reproduction`：在明确条件下触发或观察 symptom 的方法；能否稳定重复也是调查信息。
+- `observation`：工具实际返回的事实及其条件。
+- `hypothesis`：可以用结果支持或削弱的原因解释。
+- `root cause`：证据支持的故障机制；其触发位置不自动成为修复职责位置。
+- `regression oracle`：保护持续有效行为的检查，不要求每次调查另增一个。
+- `containment`：恢复服务或限制影响的处置，不等于确认了原因。
 
 这里的 `hypothesis` 是调试方法术语，不是外环的“假设并标记”分类。
 
-**输出**
+#### 输出
 
-`root-cause explanation + patch + reproduction/regression 证据`。
+证据支持的原因解释、必要的 `patch`，以及实际复验的结果、条件和范围。未完成诊断时明确未知和缓解效果，不强行给出根因或把无关通过结果当作修复证据。
 
 ### 4.3 `receiving-code-review`
 
-**Trigger**
+#### Trigger
 
-收到外部 reviewer、人类或工具对当前改动的具体 finding。
+收到人类或工具对当前改动的 review 反馈，需要决定如何处置。
 
-**方法**
+#### 方法
 
-1. 从代码和可执行行为验证 finding 是否成立。
-2. 不清楚时定位缺失证据，不做表演式同意。
-3. finding 成立时，在 owning layer 修正，并搜索同类缺陷。
-4. 复跑被 finding 影响的验证方法。
-5. finding 不成立时，用可检查证据说明原因。
+- 在被审版本上核对描述的现象或代码路径。差异和调用者已经足以判断时不再重复实验；依赖运行结果时用针对性用例，无法核实时说明缺少什么。
+- 判断现象是否违反有效要求。用户请求、公开接口和功能依赖的安全性质可以建立期望；既有或新增断言可能表达契约，也可能记录偶然实现。reviewer 一致但共享同一个未经核实的前提，不构成独立证据。
+- 单独评价建议的修法，在承担要求的位置修正。下游表示需求先由消费者适配；共享接口本身不足时再判断其修改。相关路径共享错误假设时继续检查，不因代码相似自动搜索并修复所有邻近位置。
+- 保留声明的运行时、平台和公共 API 支持，除非 owner 已授权变化。本机测试工具和仓内未找到调用，都不自动授权提高最低版本、删除兼容回归或撤掉公开接口。
+- 对受不确定信息影响的项目等待决定，继续独立且已理解的工作。分别理解的修复可以共享验证运行，结果仍应揭示检查了什么；按证据修复、反驳或说明限制，新证据推翻旧回应时修正判断。
 
-**术语**
+#### 术语
 
-- `finding`：可定位、可验证的缺陷主张。
-- `validity`：finding 是否与当前代码和行为一致。
-- `owning layer`：应当承担该不变量的实现位置。
-- `sibling defect`：由同一根因产生的其他实例。
-- `re-verification`：修正后重新运行受影响检查。
+- `finding`：关于改动的缺陷主张，不预设其已成立或其修法已正确。
+- `validity`：描述的现象是否存在，以及它是否违反当前有效要求。
+- `owning layer`：应当承担被违反要求的实现位置。
+- `sibling defect`：共享错误假设的其他缺陷实例，是否检查取决于实际关联。
+- `re-verification`：对实际修改所影响行为的复验及范围说明。
 
-**输出**
+#### 输出
 
-`finding disposition + 必要 patch + re-verification 证据`。
+`finding disposition`、必要的 `patch` 和实际 `re-verification` 证据；把已确认、不同意和暂不能核实的意见说明清楚。
 
 **设计边界（不写入该 `SKILL.md`）**：review round、review budget 和 reviewer 生命周期属于 harness，而非该方法。
 
 ### 4.4 `subagent-driven-development`
 
-**Trigger**
+#### Trigger
 
 存在两个以上候选工作面，并且并行可能显著缩短关键路径。宿主已具备 worker、隔离和结果收集能力。
 
-**方法只保留两个判断**
+#### 方法只保留两个判断
 
 1. **是否并行**：所有权是否真正不相交；接口是否已冻结；节省的关键路径是否大于协调成本。
 2. **如何集成**：只接纳完整集合，不做部分集成；先验证每份结果的所有权，再在 canonical workspace 集成并验证整体。
 
-**术语**
+#### 术语
 
 - `ownership`：一个 writer 可修改的代码和可变资源边界。
 - `frozen interface`：并行期间不允许单方改变的共享契约。
@@ -211,7 +215,7 @@ Ockle/
 - `integration`：将完整集合纳入 canonical workspace。
 - `recovery`：已提交结果按反序 revert；未提交结果只反向应用其 patch。
 
-**输出**
+#### 输出
 
 临时 worker 结果、patch 和集成证据。扩展不创建共享 manifest、Package、Milestone 或状态机。
 
@@ -219,11 +223,11 @@ Dispatch、concurrency、worktree、reviewer、status、resume、budget 和 arti
 
 ### 4.5 `unattended-delivery`
 
-**Trigger**
+#### Trigger
 
 用户明确要求长时无人值守、跨压缩继续工作，或者当前会话确定在用户无法及时回答时仍需产生可审计进展。默认不加载。
 
-**方法**
+#### 方法
 
 1. 把用户请求保持为一个 `request scope`，不预先拆分。
 2. 正常使用方法内核推进请求。
@@ -231,7 +235,7 @@ Dispatch、concurrency、worktree、reviewer、status、resume、budget 和 arti
 4. 仅当剩余行为在“双向独立”意义上成立时继续：被剔除部分永远不做，剩余仍正确有用；以后补上被剔除部分，不破坏已交付行为。
 5. handoff 只声明有新鲜证据支持的 `proven scope`；park 必须点名具体 `unlock question`。
 
-**术语**
+#### 术语
 
 - `request scope`：用户请求本身，不是模型创建的对象或列表。
 - `boundary`：已经观察到的 guard failure、缺失输入、未授权 effect 或仓库契约。
@@ -240,7 +244,7 @@ Dispatch、concurrency、worktree、reviewer、status、resume、budget 和 arti
 - `unlock question`：继续该部分所缺的一个具体输入。
 - `effect`：push、PR、部署、迁移执行、删除或其他外部/不可逆动作。
 
-**输出**
+#### 输出
 
 默认只产生代码、测试和正常 Git 记录。安装 companion 时，可额外产生一条由工具采集的 `PROVED` 或 `PARKED` 事件。
 
@@ -341,7 +345,7 @@ flowchart TD
     U["用户请求：保持为一个范围"] --> O{"当前观察"}
 
     O -->|新增或改变行为| T["TDD"]
-    O -->|失败且根因未知| D["Systematic Debugging"]
+    O -->|失败或意外行为| D["Systematic Debugging"]
     O -->|收到具体 finding| R["Receiving Code Review"]
 
     T --> W["代码与局部可执行证据"]
@@ -382,8 +386,8 @@ flowchart TD
 
 请求：“修复 CI 中偶发失败的 queue test。”
 
-- `systematic-debugging` 先稳定复现并定位 slot collision。
-- 修复阶段按需使用 TDD 固化 regression oracle。
+- `systematic-debugging` 从原始失败和运行条件出发，比较排队状态与执行顺序，用可重复的交错或针对性观察检验 slot collision 的解释。
+- 证据支持原因后修复相应职责，按需使用 TDD 复用或补充稳定消费边界上的回归检查。
 - reproduction、实验和 regression test 都属于同一个请求范围。
 - handoff 绑定复现频率、修复后重复运行结果和当前 commit。
 
